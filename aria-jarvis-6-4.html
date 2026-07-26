@@ -1,0 +1,2207 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="ARIA">
+<title>ARIA — Your AI Friend</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Sora:wght@400;500;600&display=swap');
+
+  :root{
+    --bg: #070a10;
+    --panel: #0d1219;
+    --panel-hi: #121a24;
+    --line: #1c2733;
+    --cyan: #4fd8ff;
+    --cyan-dim: #2a6b80;
+    --amber: #ffb454;
+    --red: #ff5c5c;
+    --text: #e7f2fb;
+    --muted: #6f8394;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color: transparent;}
+  html,body{height:100%;}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:'Sora', system-ui, sans-serif;
+    display:flex; flex-direction:column; overflow:hidden; position:relative;
+  }
+  #bgCanvas{ position:fixed; inset:0; z-index:0; opacity:0.85; }
+  .app{ position:relative; z-index:1; display:flex; flex-direction:column; height:100%; }
+
+  /* ---------- Top status bar ---------- */
+  .statusbar{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:10px 16px; border-bottom:1px solid var(--line);
+    font-family:'Rajdhani', sans-serif; letter-spacing:2px; font-size:12px;
+    color:var(--muted); flex-shrink:0; background:rgba(7,10,16,0.55); backdrop-filter:blur(6px);
+  }
+  .statusbar .brand{ color:var(--cyan); font-weight:700; font-size:15px; letter-spacing:4px;}
+  .dot{ width:7px; height:7px; border-radius:50%; background:var(--muted); display:inline-block; margin-right:6px;}
+  .dot.live{ background:var(--cyan); box-shadow:0 0 8px var(--cyan);}
+  #gearBtn{ background:none; border:1px solid var(--line); color:var(--muted); border-radius:6px; padding:4px 10px; font-family:'Rajdhani'; letter-spacing:1px; cursor:pointer;}
+  #gearBtn:hover{ border-color:var(--cyan); color:var(--cyan);}
+
+  /* ---------- Orb (signature element) ---------- */
+  .orb-wrap{ display:flex; flex-direction:column; justify-content:center; align-items:center; padding:20px 0 8px; flex-shrink:0; }
+  .orb{ position:relative; width:118px; height:118px; }
+  .ring{ position:absolute; inset:0; border-radius:50%; border:1px solid var(--cyan-dim); opacity:.5;}
+  .ring.r2{ inset:14px; opacity:.35; }
+  .ring.r3{ inset:28px; opacity:.25; }
+  .core{
+    position:absolute; inset:38px; border-radius:50%;
+    background: radial-gradient(circle at 35% 30%, #fff2f8, #ffb3d6 30%, var(--cyan) 65%, #0a5a70 100%);
+    box-shadow: 0 0 22px rgba(255,150,200,.45), 0 0 60px rgba(79,216,255,.3);
+    transition: all .25s ease;
+  }
+  .orb.idle .core{ animation: breathe 3.2s ease-in-out infinite; }
+  .orb.listening .core{ background: radial-gradient(circle at 35% 30%, #ffe9c2, var(--amber) 45%, #7a4300 100%); box-shadow:0 0 26px rgba(255,180,84,.6); animation: pulseFast 0.9s ease-in-out infinite;}
+  .orb.thinking .ring{ animation: spin 2.4s linear infinite; border-style:dashed; }
+  .orb.thinking .core{ animation: pulseFast 1.4s ease-in-out infinite; }
+  .orb.speaking .core{ animation: pulseFast .5s ease-in-out infinite; }
+  @keyframes breathe{ 0%,100%{ transform:scale(1);} 50%{ transform:scale(1.06);} }
+  @keyframes pulseFast{ 0%,100%{ transform:scale(1);} 50%{ transform:scale(1.14);} }
+  @keyframes spin{ from{ transform:rotate(0);} to{ transform:rotate(360deg);} }
+  .state-label{ text-align:center; font-family:'Rajdhani'; letter-spacing:3px; font-size:11px; color:var(--muted); margin-top:6px; text-transform:uppercase;}
+
+  .callmode-btn{
+    margin-top:12px; padding:9px 22px; border-radius:30px; border:1px solid var(--cyan-dim);
+    background:rgba(79,216,255,0.06); color:var(--cyan); font-family:'Rajdhani'; letter-spacing:2px;
+    font-weight:600; font-size:13px; cursor:pointer;
+  }
+  .callmode-btn.active{ background:var(--cyan); color:var(--bg); box-shadow:0 0 18px rgba(79,216,255,.5); border-color:var(--cyan); }
+  .mode-row{ display:flex; gap:8px; margin-top:10px; }
+  .mode-btn{ padding:6px 14px; border-radius:20px; border:1px solid var(--line); background:var(--panel-hi); color:var(--muted); font-family:'Rajdhani'; letter-spacing:1px; font-size:12px; cursor:pointer; }
+  .mode-btn.active{ border-color:var(--amber); color:var(--amber); background:rgba(255,180,84,0.08); }
+  .journal-entry{ border:1px solid var(--line); border-radius:10px; padding:10px; margin-bottom:8px; }
+  .journal-entry .je-date{ font-family:'Rajdhani'; letter-spacing:1px; font-size:11px; color:var(--amber); margin-bottom:4px; }
+  .journal-entry .je-text{ font-size:13px; color:var(--text); white-space:pre-wrap; }
+  #journalTextarea{ width:100%; min-height:110px; background:var(--panel-hi); border:1px solid var(--line); color:var(--text); border-radius:8px; padding:10px; font-family:'Sora'; font-size:13.5px; resize:vertical; }
+
+  /* ---------- Chat ---------- */
+  .chat{ flex:1; overflow-y:auto; padding:8px 14px 10px; display:flex; flex-direction:column; gap:10px; }
+  .chat::-webkit-scrollbar{ width:4px; }
+  .chat::-webkit-scrollbar-thumb{ background:var(--line); }
+  .msg{ max-width:82%; padding:10px 13px; border-radius:12px; font-size:14.5px; line-height:1.5; backdrop-filter:blur(4px); }
+  .msg.user{ align-self:flex-end; background:rgba(18,26,36,0.85); border:1px solid var(--line); border-bottom-right-radius:3px; }
+  .msg.aria{ align-self:flex-start; background:rgba(10,15,20,0.55); border:1px solid var(--cyan-dim); border-bottom-left-radius:3px; color:var(--text); }
+  .msg.sys{ align-self:center; color:var(--muted); font-family:'Rajdhani'; letter-spacing:1px; font-size:12px; border:none; background:none; }
+  .msg img{ max-width:100%; border-radius:8px; margin-bottom:6px; display:block; }
+
+  /* ---------- Input dock ---------- */
+  .dock{ border-top:1px solid var(--line); padding:10px 12px calc(10px + env(safe-area-inset-bottom)); background:rgba(13,18,25,0.75); backdrop-filter:blur(8px); flex-shrink:0; }
+  .dock-row{ display:flex; gap:6px; align-items:center; flex-wrap:nowrap; }
+  @media (max-width:400px){
+    .iconbtn{ width:36px; height:36px; font-size:15px; }
+  }
+  #textInput{
+    flex:1; background:var(--panel-hi); border:1px solid var(--line); color:var(--text);
+    border-radius:10px; padding:11px 13px; font-size:14.5px; font-family:'Sora'; outline:none;
+  }
+  #textInput:focus{ border-color:var(--cyan-dim); }
+  .iconbtn{
+    width:42px; height:42px; border-radius:10px; border:1px solid var(--line); background:var(--panel-hi);
+    color:var(--muted); display:flex; align-items:center; justify-content:center; cursor:pointer; flex-shrink:0; font-size:18px;
+  }
+  .iconbtn:active{ transform:scale(0.93); }
+  .iconbtn.on{ color:var(--bg); background:var(--cyan); border-color:var(--cyan); box-shadow:0 0 14px rgba(79,216,255,.5); }
+  #sendBtn{ background:var(--cyan); color:var(--bg); border:none; font-weight:600; }
+
+  /* ---------- Settings panel ---------- */
+  .overlay{ position:fixed; inset:0; background:rgba(3,6,10,.75); display:none; align-items:center; justify-content:center; z-index:50; padding:20px;}
+  .overlay.show{ display:flex; }
+  .panel{ background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:20px; width:100%; max-width:380px; max-height:85vh; overflow-y:auto; }
+  .panel h3{ margin:0 0 14px; font-family:'Rajdhani'; letter-spacing:2px; color:var(--cyan); font-size:16px;}
+  .field{ margin-bottom:12px; }
+  .field label{ display:block; font-size:11px; color:var(--muted); margin-bottom:5px; font-family:'Rajdhani'; letter-spacing:1px; }
+  .field input, .field select{ width:100%; background:var(--panel-hi); border:1px solid var(--line); color:var(--text); padding:9px 10px; border-radius:8px; font-family:'Sora'; font-size:13.5px; outline:none;}
+  .field input:focus, .field select:focus{ border-color:var(--cyan-dim);}
+  .panel-actions{ display:flex; gap:8px; margin-top:16px; }
+  .btn{ flex:1; padding:10px; border-radius:8px; border:1px solid var(--line); background:var(--panel-hi); color:var(--text); font-family:'Rajdhani'; letter-spacing:1px; font-weight:600; cursor:pointer;}
+  .btn.primary{ background:var(--cyan); color:var(--bg); border:none; }
+  .btn.danger{ color:var(--red); border-color:var(--red); background:transparent; }
+  .hint{ font-size:11.5px; color:var(--muted); line-height:1.5; margin-top:2px;}
+
+  video#camPreview{ display:none; }
+  canvas#camCanvas{ display:none; }
+
+  /* ---------- Light theme ---------- */
+  body.light{
+    --bg:#f4f7fa; --panel:#ffffff; --panel-hi:#eef2f6; --line:#d8e0e8;
+    --cyan:#0091b3; --cyan-dim:#7fc4d6; --amber:#b3720f; --red:#c0392b;
+    --text:#12202b; --muted:#5a6b78;
+  }
+  #themeBtn{ background:none; border:1px solid var(--line); color:var(--muted); border-radius:6px; padding:4px 9px; font-family:'Rajdhani'; letter-spacing:1px; cursor:pointer; margin-right:6px;}
+  #themeBtn:hover{ border-color:var(--cyan); color:var(--cyan);}
+
+  /* ---------- Lock screen ---------- */
+  .lockscreen{ position:fixed; inset:0; background:var(--bg); z-index:200; display:none; flex-direction:column; align-items:center; justify-content:center; gap:14px; }
+  .lockscreen.show{ display:flex; }
+  .lockscreen .lock-title{ font-family:'Rajdhani'; letter-spacing:3px; color:var(--cyan); font-size:15px; }
+  #pinDots{ display:flex; gap:10px; }
+  .pin-dot{ width:14px; height:14px; border-radius:50%; border:1px solid var(--cyan-dim); }
+  .pin-dot.filled{ background:var(--cyan); }
+  .pin-pad{ display:grid; grid-template-columns:repeat(3,64px); gap:12px; }
+  .pin-pad button{ width:64px; height:64px; border-radius:50%; border:1px solid var(--line); background:var(--panel-hi); color:var(--text); font-size:20px; }
+  #pinError{ color:var(--red); font-size:12px; font-family:'Rajdhani'; letter-spacing:1px; min-height:16px; }
+
+  /* ---------- Tools menu / lists ---------- */
+  .tool-list{ display:flex; flex-direction:column; gap:8px; }
+  .tool-item{ display:flex; align-items:center; gap:10px; padding:11px 12px; border-radius:10px; border:1px solid var(--line); background:var(--panel-hi); color:var(--text); cursor:pointer; font-family:'Sora'; font-size:13.5px; text-align:left; }
+  .tool-item:active{ transform:scale(0.98); }
+  .tool-item .ti-emoji{ font-size:18px; }
+  .stat-row{ display:flex; justify-content:space-between; font-size:13px; padding:6px 0; border-bottom:1px solid var(--line); }
+  .bar-track{ width:100%; height:8px; border-radius:4px; background:var(--panel-hi); overflow:hidden; margin-top:4px;}
+  .bar-fill{ height:100%; background:var(--cyan); }
+  .account-chip{ display:flex; justify-content:space-between; align-items:center; padding:8px 10px; border:1px solid var(--line); border-radius:8px; margin-bottom:6px; font-size:13px; }
+  .account-chip button{ background:none; border:none; color:var(--red); cursor:pointer; font-size:13px; }
+  .tag-pill{ display:inline-block; padding:3px 9px; border-radius:20px; background:var(--panel-hi); border:1px solid var(--line); font-size:11px; color:var(--muted); margin-right:5px; }
+
+  /* ---------- Accent color themes (combine with light/dark) ---------- */
+  body.theme-purple{ --cyan:#a78bfa; --cyan-dim:#6d28d9; }
+  body.theme-pink{ --cyan:#ff6fa5; --cyan-dim:#b23767; }
+  body.theme-green{ --cyan:#4ade80; --cyan-dim:#15803d; }
+  body.theme-gold{ --cyan:#ffd166; --cyan-dim:#a8760f; }
+
+  /* ---------- Custom wallpaper ---------- */
+  #wallpaperLayer{ position:fixed; inset:0; z-index:0; background-size:cover; background-position:center; opacity:0; transition:opacity .3s; pointer-events:none; }
+  #wallpaperLayer.show{ opacity:0.32; }
+  body.has-wallpaper #bgCanvas{ opacity:0.25; }
+
+  /* ---------- Custom avatar/face (replaces orb) ---------- */
+  .avatar-img{ position:absolute; inset:0; width:100%; height:100%; border-radius:50%; object-fit:cover; display:none; border:2px solid var(--cyan-dim); }
+  .orb.has-avatar .core{ display:none; }
+  .orb.has-avatar .avatar-img{ display:block; }
+  .orb.has-avatar.listening .avatar-img{ animation:pulseFast 0.9s ease-in-out infinite; border-color:var(--amber); box-shadow:0 0 22px rgba(255,180,84,.5); }
+  .orb.has-avatar.thinking .avatar-img{ animation:pulseFast 1.4s ease-in-out infinite; }
+  .orb.has-avatar.speaking .avatar-img{ animation:pulseFast .5s ease-in-out infinite; box-shadow:0 0 22px rgba(79,216,255,.5); }
+  .orb.has-avatar.idle .avatar-img{ animation:breathe 3.2s ease-in-out infinite; }
+
+  .swatch-row{ display:flex; gap:10px; margin:6px 0 4px; flex-wrap:wrap; }
+  .swatch{ width:34px; height:34px; border-radius:50%; border:2px solid var(--line); cursor:pointer; }
+  .swatch.active{ border-color:var(--text); box-shadow:0 0 0 2px var(--cyan); }
+</style>
+</head>
+<body>
+
+  <canvas id="bgCanvas"></canvas>
+  <div id="wallpaperLayer"></div>
+
+  <div class="app">
+    <div class="statusbar">
+      <span class="brand">ARIA</span>
+      <span><span class="dot" id="liveDot"></span><span id="statusText">OFFLINE — API KEY चाहिए</span></span>
+      <span><button id="themeBtn" title="Theme बदलें">🌙</button><button id="gearBtn">SETUP ⚙</button></span>
+    </div>
+
+    <div class="orb-wrap">
+      <div class="orb idle" id="orb">
+        <div class="ring"></div>
+        <div class="ring r2"></div>
+        <div class="ring r3"></div>
+        <div class="core"></div>
+        <img class="avatar-img" id="avatarImg" src="" alt="ARIA">
+      </div>
+      <div class="state-label" id="stateLabel">IDLE</div>
+      <button class="callmode-btn" id="callModeBtn">📞 CALL MODE शुरू करें</button>
+      <div class="mode-row">
+        <button class="mode-btn active" id="modeFriendBtn">🤝 दोस्त</button>
+        <button class="mode-btn" id="modeTraderBtn">🧠 Trading Coach</button>
+      </div>
+    </div>
+
+    <div class="chat" id="chat">
+      <div class="msg sys">ARIA ऑनलाइन होने के लिए ऊपर SETUP में अपनी Gemini API key डालें</div>
+    </div>
+
+    <div class="dock">
+      <div class="dock-row">
+        <button class="iconbtn" id="journalBtn" title="आज की Journal लिखें">📓</button>
+        <button class="iconbtn" id="calcBtn" title="Trading Calculator">🧮</button>
+        <button class="iconbtn" id="camBtn" title="देखकर बताओ">📷</button>
+        <button class="iconbtn" id="liveWatchBtn" title="लगातार देखते रहो">👁</button>
+        <button class="iconbtn" id="toolsBtn" title="और Tools">🧩</button>
+        <button class="iconbtn" id="micBtn" title="बोलकर पूछो (एक बार)">🎙</button>
+        <input id="textInput" type="text" placeholder="कुछ भी पूछिए… (या 'ARIA कैलकुलेटर खोलो' बोलें)" autocomplete="off">
+        <button class="iconbtn" id="sendBtn" title="भेजें">➤</button>
+        <input id="chartFileInput" type="file" accept="image/*" style="display:none;">
+      </div>
+    </div>
+  </div>
+
+  <video id="camPreview" autoplay playsinline muted></video>
+  <canvas id="camCanvas"></canvas>
+
+  <div class="overlay" id="calcOverlay">
+    <div class="panel">
+      <h3>🧮 RISK MANAGEMENT CALCULATOR</h3>
+      <div class="field"><label>Saved Account चुनें (optional)</label><select id="calcAcctSelect"><option value="">— manually भरें —</option></select></div>
+      <div class="field"><label>Account Balance (₹/$)</label><input id="calcBalance" type="number" placeholder="100000"></div>
+      <div class="field"><label>Risk (% of account इस trade पर)</label><input id="calcRiskPct" type="number" placeholder="1"></div>
+      <div class="field"><label>Entry Price</label><input id="calcEntry" type="number" placeholder="250"></div>
+      <div class="field"><label>Stop Loss Price</label><input id="calcSL" type="number" placeholder="245"></div>
+      <div class="field"><label>Target Price (optional)</label><input id="calcTarget" type="number" placeholder="260"></div>
+      <div class="panel-actions">
+        <button class="btn primary" id="calcRun">Calculate करें</button>
+      </div>
+      <div id="calcResult" class="hint" style="font-size:13px; margin-top:10px; white-space:pre-wrap;"></div>
+      <div class="panel-actions">
+        <button class="btn" id="closeCalc">बंद करें</button>
+      </div>
+    </div>
+  </div>
+  <div class="overlay" id="journalOverlay">
+    <div class="panel">
+      <h3>📓 TRADING JOURNAL</h3>
+      <div class="field">
+        <label>आज का ट्रेड / मन की बात लिखें (या बोलकर भरें)</label>
+        <textarea id="journalTextarea" placeholder="आज मैंने क्या trade लिया, क्यों लिया, क्या महसूस हुआ, क्या गलती हुई..."></textarea>
+      </div>
+      <div class="field">
+        <label>आज का Mood</label>
+        <select id="journalMood">
+          <option value="😌 Calm">😌 Calm / शांत</option>
+          <option value="😰 Anxious">😰 Anxious / घबराया हुआ</option>
+          <option value="🤑 Greedy">🤑 Greedy / लालची</option>
+          <option value="😡 Frustrated">😡 Frustrated / गुस्सा</option>
+          <option value="😎 Confident">😎 Confident / आत्मविश्वासी</option>
+          <option value="😔 Regretful">😔 Regretful / पछतावा</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Trade Outcome (optional)</label>
+        <select id="journalOutcome">
+          <option value="">— चुनें —</option>
+          <option value="win">✅ Profit / Win</option>
+          <option value="loss">❌ Loss</option>
+          <option value="breakeven">➖ Breakeven</option>
+          <option value="notrade">🚫 कोई trade नहीं लिया</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>P&L Amount (optional, ₹/$)</label>
+        <input id="journalPnl" type="number" placeholder="जैसे 1500 या -800">
+      </div>
+      <div class="panel-actions">
+        <button class="btn" id="journalMicBtn">🎙 बोलकर भरें</button>
+        <button class="btn primary" id="saveJournal">Save + Coach से बात करें</button>
+      </div>
+      <h3 style="margin-top:18px;">पुरानी Entries</h3>
+      <div id="journalList"></div>
+      <div class="panel-actions">
+        <button class="btn" id="exportJournalBtn">📤 Export (.txt)</button>
+        <button class="btn" id="closeJournal">बंद करें</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="overlay" id="setupOverlay">
+    <div class="panel">
+      <h3>SETUP</h3>
+      <div class="field">
+        <label>GEMINI API KEY</label>
+        <input id="apiKeyInput" type="password" placeholder="AIza...">
+        <div class="hint">एक बार key भरकर "Save & Connect" दबाएं — यह इसी phone/browser में हमेशा के लिए save रहेगी, दोबारा नहीं भरनी पड़ेगी।</div>
+      </div>
+      <div class="field">
+        <label>MODEL</label>
+        <select id="modelSelect">
+          <option value="gemini-3.5-flash">gemini-3.5-flash (नया, recommended)</option>
+          <option value="gemini-3.1-flash-lite">gemini-3.1-flash-lite (हल्का/सस्ता)</option>
+          <option value="gemini-2.5-flash-lite">gemini-2.5-flash-lite (पुराना, हो सकता है काम न करे)</option>
+          <option value="gemini-2.5-flash">gemini-2.5-flash (बंद हो चुका नए users के लिए)</option>
+        </select>
+        <div class="hint">Google models को regularly बदलता/बंद करता रहता है। अभी (जुलाई 2026) gemini-2.5-flash और gemini-2.5-flash-lite नए users के लिए बंद हो चुके हैं — gemini-3.5-flash चुनें। अगर वो भी error दे, तो gemini-3.1-flash-lite try करें।</div>
+      </div>
+      <div class="field">
+        <label>बोलने की भाषा (Voice)</label>
+        <select id="langSelect">
+          <option value="hi-IN">हिंदी (Hindi)</option>
+          <option value="en-IN">English (India)</option>
+          <option value="en-US">English (US)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Voice Gender पसंद</label>
+        <select id="voiceGenderFilter">
+          <option value="auto">Auto (सबसे बढ़िया)</option>
+          <option value="female">Female / महिला</option>
+          <option value="male">Male / पुरुष</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>ARIA की आवाज़ चुनें</label>
+        <select id="voiceSelect"><option value="">(auto — सबसे अच्छी female voice)</option></select>
+        <div class="hint">✨ mark waali voices best quality hoti hain (Google/Natural/Neural)। Behtar, saaf aur surili awaaz ke liye phone ki Settings → Language → Text-to-Speech mein "Google Text-to-Speech" install/update karke usmein high-quality Hindi female voice download karein — asli audio quality iss engine par depend karti hai.</div>
+      </div>
+      <div class="field">
+        <label>आवाज़ की पिच (मीठी/भारी)</label>
+        <input id="pitchRange" type="range" min="0.8" max="1.5" step="0.05" value="1.15">
+      </div>
+      <div class="field">
+        <label>बोलने की स्पीड</label>
+        <input id="rateRange" type="range" min="0.7" max="1.4" step="0.05" value="1.0">
+      </div>
+      <div class="panel-actions">
+        <button class="btn" id="testVoiceBtn">🔊 Voice Test करें</button>
+      </div>
+      <div class="field">
+        <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+          <input type="checkbox" id="autoSpeak" checked style="width:auto;"> ARIA अपने जवाब बोलकर सुनाए
+        </label>
+      </div>
+      <div class="field">
+        <label>जवाब की भाषा (Text Reply Style)</label>
+        <select id="replyLangSelect">
+          <option value="hinglish">Hinglish (Hindi+English mix)</option>
+          <option value="hindi">शुद्ध हिंदी</option>
+          <option value="english">Pure English</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>🔐 PIN Lock (app खोलते समय PIN माँगे)</label>
+        <input id="pinSetupInput" type="password" maxlength="4" placeholder="4-digit PIN (खाली छोड़ें = लॉक बंद)">
+        <div class="hint">PIN set karke Save & Connect dabayein. Journal aur chats private rakhne ke liye.</div>
+      </div>
+      <div class="field">
+        <label>🎨 Theme Mode</label>
+        <select id="themeModeSelect">
+          <option value="manual">Manual (🌙/☀️ button से)</option>
+          <option value="auto">Auto — Phone/System की Dark-Light setting follow करे</option>
+        </select>
+      </div>
+      <div class="field">
+        <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+          <input type="checkbox" id="functionCallingToggle" checked style="width:auto;"> ARIA खुद tools खोले/चलाए (बोलने/लिखने पर calculator, journal, alert, reminder आदि खुद open/set करे)
+        </label>
+        <div class="hint">बंद करने पर ARIA सिर्फ बात करेगी, tools खुद नहीं खोलेगी — आपको manually 🧩 Tools से खोलने होंगे।</div>
+      </div>
+      <div class="field">
+        <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+          <input type="checkbox" id="dailySummaryToggle" style="width:auto;"> रोज़ रात ~9 बजे आज की Journal का Auto-Summary बनाए
+        </label>
+      </div>
+      <div class="panel-actions">
+        <button class="btn" id="closeSetup">बंद करें</button>
+        <button class="btn primary" id="saveSetup">Save & Connect</button>
+      </div>
+      <div class="panel-actions">
+        <button class="btn danger" id="clearMemory">🗑 पूरी बातचीत/memory मिटाएं</button>
+      </div>
+    </div>
+  </div>
+
+<div class="lockscreen" id="lockscreen">
+  <div class="lock-title">🔐 ARIA LOCKED</div>
+  <div id="pinDots"><span class="pin-dot"></span><span class="pin-dot"></span><span class="pin-dot"></span><span class="pin-dot"></span></div>
+  <div id="pinError"></div>
+  <div class="pin-pad">
+    <button data-d="1">1</button><button data-d="2">2</button><button data-d="3">3</button>
+    <button data-d="4">4</button><button data-d="5">5</button><button data-d="6">6</button>
+    <button data-d="7">7</button><button data-d="8">8</button><button data-d="9">9</button>
+    <button data-d="clear">C</button><button data-d="0">0</button><button data-d="back">⌫</button>
+  </div>
+</div>
+
+<div class="overlay" id="toolsOverlay">
+  <div class="panel">
+    <h3>🧩 ARIA TOOLS</h3>
+    <div class="tool-list">
+      <button class="tool-item" id="openStats"><span class="ti-emoji">📈</span> Trade History / Stats</button>
+      <button class="tool-item" id="openAppearance"><span class="ti-emoji">🎨</span> Theme, Wallpaper और Face/Avatar</button>
+      <button class="tool-item" id="openAccounts"><span class="ti-emoji">💰</span> Multiple Account Tracker</button>
+      <button class="tool-item" id="openAlerts"><span class="ti-emoji">🔔</span> Price Alerts (Crypto)</button>
+      <button class="tool-item" id="openTimer"><span class="ti-emoji">⏱</span> Session Timer</button>
+      <button class="tool-item" id="openGoal"><span class="ti-emoji">🎯</span> Goal Tracker</button>
+      <button class="tool-item" id="openSessions"><span class="ti-emoji">💬</span> Chat Sessions</button>
+      <button class="tool-item" id="openReminder"><span class="ti-emoji">📅</span> Daily Reminder</button>
+      <button class="tool-item" id="uploadChartTool"><span class="ti-emoji">🖼</span> Chart Screenshot Upload करें</button>
+      <button class="tool-item" id="newsTool"><span class="ti-emoji">📰</span> आज का Market Sentiment पूछें</button>
+      <button class="tool-item" id="weeklyReviewTool"><span class="ti-emoji">🗓</span> Weekly Self-Review</button>
+      <button class="tool-item" id="a2hsTool"><span class="ti-emoji">📲</span> Home Screen पर Add करें</button>
+      <button class="tool-item" id="openMemory"><span class="ti-emoji">🧠</span> ARIA Memory (Long-term Yaad)</button>
+      <button class="tool-item" id="openBackup"><span class="ti-emoji">💾</span> Backup / Restore Data</button>
+    </div>
+    <div class="panel-actions">
+      <button class="btn" id="closeTools">बंद करें</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="appearanceOverlay">
+  <div class="panel">
+    <h3>🎨 THEME, WALLPAPER, FACE</h3>
+    <div class="field">
+      <label>Theme Color चुनें</label>
+      <div class="swatch-row" id="swatchRow">
+        <div class="swatch" data-theme="" style="background:#4fd8ff;" title="Cyan (default)"></div>
+        <div class="swatch" data-theme="theme-purple" style="background:#a78bfa;" title="Purple"></div>
+        <div class="swatch" data-theme="theme-pink" style="background:#ff6fa5;" title="Pink"></div>
+        <div class="swatch" data-theme="theme-green" style="background:#4ade80;" title="Green"></div>
+        <div class="swatch" data-theme="theme-gold" style="background:#ffd166;" title="Gold"></div>
+      </div>
+    </div>
+    <div class="field">
+      <label>Background Wallpaper (Gallery से अपनी पसंद की photo)</label>
+      <div class="panel-actions">
+        <button class="btn" id="wallpaperPick">🖼 Wallpaper चुनें</button>
+        <button class="btn danger" id="wallpaperRemove">हटाएं</button>
+      </div>
+      <input id="wallpaperFileInput" type="file" accept="image/*" style="display:none;">
+      <div class="hint">Photo select karte hi background mein lag jaayegi।</div>
+    </div>
+    <div class="field">
+      <label>ARIA का Face / Avatar (गोल circle के अंदर — Gallery से)</label>
+      <div class="panel-actions">
+        <button class="btn" id="avatarPick">👤 Face चुनें</button>
+        <button class="btn danger" id="avatarRemove">हटाएं (default orb)</button>
+      </div>
+      <input id="avatarFileInput" type="file" accept="image/*" style="display:none;">
+      <div class="hint">Koi bhi photo (jaise ek ladki ka face) chunein — wahi gol circle ke andar ARIA ke roop mein dikhegi, aur bolte/sunte waqt uske around glow bhi hoga.</div>
+    </div>
+    <div class="panel-actions">
+      <button class="btn" id="closeAppearance">बंद करें</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="statsOverlay">
+  <div class="panel">
+    <h3>📈 TRADE HISTORY / STATS</h3>
+    <div id="statsBody"></div>
+    <div class="panel-actions">
+      <button class="btn" id="closeStats">बंद करें</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="accountsOverlay">
+  <div class="panel">
+    <h3>💰 MULTIPLE ACCOUNTS</h3>
+    <div class="field"><label>Account Name</label><input id="acctName" placeholder="जैसे Zerodha, Binance..."></div>
+    <div class="field"><label>Balance</label><input id="acctBalance" type="number" placeholder="100000"></div>
+    <div class="panel-actions">
+      <button class="btn primary" id="acctAdd">Account जोड़ें</button>
+    </div>
+    <div id="acctList" style="margin-top:12px;"></div>
+    <div class="panel-actions">
+      <button class="btn" id="closeAccounts">बंद करें</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="alertsOverlay">
+  <div class="panel">
+    <h3>🔔 CRYPTO PRICE ALERTS</h3>
+    <div class="hint">CoinGecko के free public data से चलता है (सिर्फ crypto coins जैसे bitcoin, ethereum)। Stocks के लिए abhi live price source उपलब्ध नहीं है।</div>
+    <div class="field"><label>Coin ID (coingecko जैसे: bitcoin, ethereum, solana)</label><input id="alertCoin" placeholder="bitcoin"></div>
+    <div class="field"><label>Alert तब दें जब price</label>
+      <select id="alertDir"><option value="above">इससे ऊपर जाए</option><option value="below">इससे नीचे जाए</option></select>
+    </div>
+    <div class="field"><label>Target Price (USD)</label><input id="alertPrice" type="number" placeholder="65000"></div>
+    <div class="panel-actions">
+      <button class="btn primary" id="alertAdd">Alert Set करें</button>
+    </div>
+    <div id="alertList" style="margin-top:10px;"></div>
+    <div class="hint" id="alertStatusHint" style="margin-top:8px;"></div>
+    <div class="panel-actions">
+      <button class="btn" id="closeAlerts">बंद करें</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="timerOverlay">
+  <div class="panel">
+    <h3>⏱ SESSION TIMER (Overtrading रोकें)</h3>
+    <div class="field"><label>Session लंबाई (मिनट में)</label><input id="timerMinutes" type="number" placeholder="60"></div>
+    <div class="panel-actions">
+      <button class="btn primary" id="timerStart">Session शुरू करें</button>
+      <button class="btn danger" id="timerStop">रोकें</button>
+    </div>
+    <div id="timerStatus" class="hint" style="margin-top:8px;"></div>
+    <div class="panel-actions">
+      <button class="btn" id="closeTimer">बंद करें</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="goalOverlay">
+  <div class="panel">
+    <h3>🎯 MONTHLY GOAL TRACKER</h3>
+    <div class="field"><label>Monthly Profit Target (₹/$)</label><input id="goalTarget" type="number" placeholder="20000"></div>
+    <div class="field"><label>अभी तक कमाया गया Profit (₹/$)</label><input id="goalCurrent" type="number" placeholder="8000"></div>
+    <div class="panel-actions">
+      <button class="btn primary" id="goalSave">Save करें</button>
+    </div>
+    <div id="goalBody" style="margin-top:10px;"></div>
+    <div class="panel-actions">
+      <button class="btn" id="closeGoal">बंद करें</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="sessionsOverlay">
+  <div class="panel">
+    <h3>💬 CHAT SESSIONS</h3>
+    <div class="hint">अलग-अलग topics के लिए अलग conversation रखें — पुरानी session की memory अलग रहती है।</div>
+    <div class="field"><label>नई Session का नाम</label><input id="newSessionName" placeholder="जैसे: Crypto ideas, Personal..."></div>
+    <div class="panel-actions">
+      <button class="btn primary" id="sessionAdd">नई Session बनाएं</button>
+    </div>
+    <div id="sessionList" style="margin-top:10px;"></div>
+    <div class="panel-actions">
+      <button class="btn" id="closeSessions">बंद करें</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="reminderOverlay">
+  <div class="panel">
+    <h3>📅 DAILY REMINDER</h3>
+    <div class="field"><label>रोज़ किस समय याद दिलाएं (24hr)</label><input id="reminderTime" type="time"></div>
+    <div class="field"><label>Reminder Message</label><input id="reminderMsg" placeholder="जैसे: Trading session शुरू करने का समय हो गया"></div>
+    <div class="panel-actions">
+      <button class="btn primary" id="reminderSave">Save करें</button>
+      <button class="btn danger" id="reminderClear">हटाएं</button>
+    </div>
+    <div id="reminderStatus" class="hint" style="margin-top:8px;"></div>
+    <div class="panel-actions">
+      <button class="btn" id="closeReminder">बंद करें</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="memoryOverlay">
+  <div class="panel">
+    <h3>🧠 ARIA MEMORY (Long-term Yaad)</h3>
+    <div class="hint">ARIA अपने आप बातचीत से ज़रूरी बातें (जैसे नाम, पसंद, trading style, लक्ष्य) याद रखती है और हर बातचीत में इस्तेमाल करती है — चाहे history clear हो जाए।</div>
+    <div class="field" style="margin-top:10px;">
+      <label>नई बात manually जोड़ें</label>
+      <input id="memoryAddInput" placeholder="जैसे: मुझे crypto ज़्यादा trade करना पसंद है">
+    </div>
+    <div class="panel-actions">
+      <button class="btn primary" id="memoryAddBtn">Yaad जोड़ें</button>
+    </div>
+    <h3 style="margin-top:16px;">जो अभी याद है</h3>
+    <div id="memoryList"></div>
+    <div class="panel-actions">
+      <button class="btn danger" id="memoryClearBtn">🗑 सब कुछ भुला दें</button>
+      <button class="btn" id="closeMemory">बंद करें</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="backupOverlay">
+  <div class="panel">
+    <h3>💾 BACKUP / RESTORE DATA</h3>
+    <div class="hint">यह सारा ARIA data (chat history, journal, memory, accounts, alerts, goal, sessions, settings) एक file में save कर देता है, ताकि नए device/browser में import करके वापस ला सको। Data आपके अपने device में ही रहता है, कहीं cloud पर नहीं जाता।</div>
+    <div class="panel-actions" style="margin-top:10px;">
+      <button class="btn primary" id="backupExportBtn">📤 Backup File Download करें</button>
+    </div>
+    <div class="panel-actions">
+      <button class="btn" id="backupImportBtn">📥 Backup File से Restore करें</button>
+    </div>
+    <input id="backupFileInput" type="file" accept="application/json" style="display:none;">
+    <div id="backupStatus" class="hint" style="margin-top:8px;"></div>
+    <div class="panel-actions">
+      <button class="btn" id="closeBackup">बंद करें</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const chat = document.getElementById('chat');
+  const orb = document.getElementById('orb');
+  const stateLabel = document.getElementById('stateLabel');
+  const statusText = document.getElementById('statusText');
+  const liveDot = document.getElementById('liveDot');
+  const textInput = document.getElementById('textInput');
+  const sendBtn = document.getElementById('sendBtn');
+  const micBtn = document.getElementById('micBtn');
+  const camBtn = document.getElementById('camBtn');
+  const callModeBtn = document.getElementById('callModeBtn');
+  const setupOverlay = document.getElementById('setupOverlay');
+  const gearBtn = document.getElementById('gearBtn');
+  const closeSetup = document.getElementById('closeSetup');
+  const saveSetup = document.getElementById('saveSetup');
+  const clearMemory = document.getElementById('clearMemory');
+  const apiKeyInput = document.getElementById('apiKeyInput');
+  const modelSelect = document.getElementById('modelSelect');
+  const langSelect = document.getElementById('langSelect');
+  const autoSpeak = document.getElementById('autoSpeak');
+  const camPreview = document.getElementById('camPreview');
+  const camCanvas = document.getElementById('camCanvas');
+
+  const STORAGE_KEY = 'aria_config_v1';
+  const HISTORY_KEY = 'aria_history_v1';
+  const JOURNAL_KEY = 'aria_journal_v1';
+  const MODE_KEY = 'aria_mode_v1';
+  const THEME_KEY = 'aria_theme_v1';
+  const ACCOUNTS_KEY = 'aria_accounts_v1';
+  const ALERTS_KEY = 'aria_alerts_v1';
+  const GOAL_KEY = 'aria_goal_v1';
+  const SESSIONS_KEY = 'aria_sessions_v1';
+  const ACTIVE_SESSION_KEY = 'aria_active_session_v1';
+  const REMINDER_KEY = 'aria_reminder_v1';
+  const MEMORY_KEY = 'aria_memory_v1';
+  const DAILY_SUMMARY_FIRE_KEY = 'aria_daily_summary_fire_v1';
+
+  function loadStorage(){
+    try{
+      const raw = localStorage.getItem(STORAGE_KEY);
+      return raw ? JSON.parse(raw) : null;
+    }catch(e){ return null; } // fails silently inside sandboxed previews; works fine in real browser/APK
+  }
+  function saveStorage(cfg){
+    try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(cfg)); }catch(e){}
+  }
+  function loadHistory(){
+    try{
+      const raw = localStorage.getItem(HISTORY_KEY);
+      return raw ? JSON.parse(raw) : [];
+    }catch(e){ return []; }
+  }
+  function saveHistory(h){
+    try{ localStorage.setItem(HISTORY_KEY, JSON.stringify(h.slice(-200))); }catch(e){}
+  }
+
+  let config = { apiKey:'', model:'gemini-3.5-flash', lang:'hi-IN', speak:true, voiceName:'', pitch:1.15, rate:1.0, voiceGender:'auto', replyLang:'hinglish', pin:'', themeMode:'manual', functionCalling:true, dailySummary:false, fallbackModel:'gemini-3.1-flash-lite' };
+  const stored = loadStorage();
+  if(stored) config = Object.assign(config, stored);
+  let history = loadHistory();
+  let mode = (function(){ try{ return localStorage.getItem(MODE_KEY) || 'friend'; }catch(e){ return 'friend'; } })();
+  function loadJournal(){ try{ const r = localStorage.getItem(JOURNAL_KEY); return r ? JSON.parse(r) : []; }catch(e){ return []; } }
+  function saveJournalEntries(list){ try{ localStorage.setItem(JOURNAL_KEY, JSON.stringify(list)); }catch(e){} }
+  let journalEntries = loadJournal();
+  function loadMemory(){ try{ const r = localStorage.getItem(MEMORY_KEY); return r ? JSON.parse(r) : []; }catch(e){ return []; } }
+  function saveMemoryNotes(list){ try{ localStorage.setItem(MEMORY_KEY, JSON.stringify(list)); }catch(e){} }
+  let memoryNotes = loadMemory();
+  let camStream = null;
+  let callMode = false;
+  let listening = false;
+  let recog = null;
+
+  // rebuild chat UI from saved history
+  history.forEach(h=>{
+    const text = (h.parts||[]).map(p=>p.text||'').join(' ').trim();
+    if(text) addMsg(text, h.role==='user' ? 'user' : 'aria', null, false);
+  });
+
+  function setState(s){
+    orb.className = 'orb ' + s;
+    stateLabel.textContent = s.toUpperCase();
+    bgTargetState = s;
+  }
+
+  function addMsg(text, who, imgDataUrl, scroll){
+    const div = document.createElement('div');
+    div.className = 'msg ' + who;
+    if(imgDataUrl){
+      const img = document.createElement('img');
+      img.src = imgDataUrl;
+      div.appendChild(img);
+    }
+    const t = document.createElement('div');
+    t.textContent = text;
+    div.appendChild(t);
+    chat.appendChild(div);
+    if(scroll !== false) chat.scrollTop = chat.scrollHeight;
+  }
+
+  function addSys(text){
+    const div = document.createElement('div');
+    div.className = 'msg sys';
+    div.textContent = text;
+    chat.appendChild(div);
+    chat.scrollTop = chat.scrollHeight;
+  }
+
+  function speak(text){
+    if(!config.speak || !('speechSynthesis' in window) || typeof SpeechSynthesisUtterance === 'undefined'){
+      if(!('speechSynthesis' in window)) addSys('⚠️ इस browser/viewer में आवाज़ (text-to-speech) support नहीं है — Chrome में खोलकर देखें।');
+      setState('idle');
+      if(callMode) startListening();
+      return;
+    }
+    try{
+      window.speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = config.lang;
+      u.pitch = config.pitch || 1.15;
+      u.rate = config.rate || 1.0;
+      u.voice = pickBestVoice();
+      u.onstart = () => setState('speaking');
+      u.onend = () => {
+        setState('idle');
+        if(callMode) startListening();
+      };
+      window.speechSynthesis.speak(u);
+    }catch(e){
+      console.warn('TTS not available', e);
+      setState('idle');
+      if(callMode) startListening();
+    }
+  }
+
+  // saaf-suthri, surili voice chunne ki koshish: pehle user ka manually chuna hua voice,
+  // fir device par mojood behtar-quality (Google/Natural/Neural) female voices, fir plain language match
+  function pickBestVoice(){
+    const voices = window.speechSynthesis.getVoices ? window.speechSynthesis.getVoices() : [];
+    if(!voices.length) return null;
+    if(config.voiceName){
+      const exact = voices.find(v=>v.name===config.voiceName);
+      if(exact) return exact;
+    }
+    const langBase = (config.lang||'hi-IN').split('-')[0];
+    const sameLang = voices.filter(v=> v.lang && v.lang.startsWith(langBase));
+    const pool = sameLang.length ? sameLang : voices;
+    const isQuality = v => /google|natural|neural|online|premium|enhanced/i.test(v.name);
+    const isFemale = v => /female|woman|f\b|zira|susan|heera|swara|neerja/i.test(v.name);
+    const isMale = v => /male|man\b|ravi|hemant|prabhat/i.test(v.name);
+    let candidates = pool;
+    if(config.voiceGender === 'female') candidates = pool.filter(isFemale).length ? pool.filter(isFemale) : pool;
+    else if(config.voiceGender === 'male') candidates = pool.filter(isMale).length ? pool.filter(isMale) : pool;
+    return candidates.find(v=> isQuality(v) && isFemale(v))
+        || candidates.find(v=> isQuality(v))
+        || candidates.find(v=> isFemale(v))
+        || candidates[0]
+        || voices[0];
+  }
+
+  function populateVoiceList(){
+    if(!('speechSynthesis' in window)) return;
+    const voiceSelect = document.getElementById('voiceSelect');
+    const genderFilter = (document.getElementById('voiceGenderFilter') || {}).value || 'auto';
+    const voices = window.speechSynthesis.getVoices();
+    if(!voices.length) return;
+    const isFemale = v => /female|woman|f\b|zira|susan|heera|swara|neerja/i.test(v.name);
+    const isMale = v => /male|man\b|ravi|hemant|prabhat/i.test(v.name);
+    let list = voices;
+    if(genderFilter === 'female') list = voices.filter(isFemale);
+    else if(genderFilter === 'male') list = voices.filter(isMale);
+    if(!list.length) list = voices;
+    const keep = voiceSelect.value;
+    voiceSelect.innerHTML = '<option value="">(auto — सबसे अच्छी female voice)</option>';
+    list.forEach(v=>{
+      const opt = document.createElement('option');
+      opt.value = v.name; opt.textContent = v.name + ' (' + v.lang + ')' + (/google|natural|neural|online/i.test(v.name) ? ' ✨' : '');
+      voiceSelect.appendChild(opt);
+    });
+    voiceSelect.value = config.voiceName && list.some(v=>v.name===config.voiceName) ? config.voiceName : (keep || '');
+  }
+  const voiceGenderFilterEl = document.getElementById('voiceGenderFilter');
+  if(voiceGenderFilterEl) voiceGenderFilterEl.addEventListener('change', populateVoiceList);
+  const testVoiceBtn = document.getElementById('testVoiceBtn');
+  if(testVoiceBtn) testVoiceBtn.addEventListener('click', ()=>{
+    config.voiceName = document.getElementById('voiceSelect').value;
+    config.pitch = parseFloat(document.getElementById('pitchRange').value);
+    config.rate = parseFloat(document.getElementById('rateRange').value || '1');
+    config.voiceGender = voiceGenderFilterEl ? voiceGenderFilterEl.value : 'auto';
+    config.lang = document.getElementById('langSelect').value;
+    const wasSpeak = config.speak; config.speak = true;
+    speak('नमस्ते! मैं ARIA हूँ, यह मेरी आवाज़ है।');
+    config.speak = wasSpeak;
+  });
+  if('speechSynthesis' in window){
+    populateVoiceList();
+    window.speechSynthesis.onvoiceschanged = populateVoiceList;
+  }
+
+  function createLiveAriaBubble(){
+    const div = document.createElement('div');
+    div.className = 'msg aria';
+    const t = document.createElement('div');
+    t.textContent = '';
+    div.appendChild(t);
+    chat.appendChild(div);
+    chat.scrollTop = chat.scrollHeight;
+    return t;
+  }
+
+  async function callGemini(userParts, opts){
+    opts = opts || {};
+    if(!config.apiKey){
+      addSys('पहले SETUP में API key डालें।');
+      setupOverlay.classList.add('show');
+      return;
+    }
+    setState('thinking');
+    history.push({ role:'user', parts:userParts });
+    if(!opts.quiet) saveHistory(history);
+
+    const friendPersona = "तुम ARIA हो — user की सबसे पक्की दोस्त और personal AI companion, Jarvis जैसी। तुम्हें user की पुरानी बातें याद रहती हैं (conversation history में हैं), उसी हिसाब से warm, apna-sa, natural tone में baat karo — jaise ek insaan doosre insaan se baat karta hai, robotic ya bahut formal nahi. User Hindi/Hinglish mix mein baat karta hai, tum bhi usi mix mein concise aur helpful jawab do. Agar image di jaaye to usse dhyaan se dekho aur uske baare mein baat karo.";
+    const traderPersona = "तुम ARIA हो, लेकिन इस समय एक अनुभवी Trading Psychology Coach के रूप में — शांत, अनुभवी, बिना judge किए, जो trader की mindset (डर, greed, overtrading, revenge trading, discipline) पर काम करती है। User अपनी daily trading journal तुम्हें बताता है (neeche journal entries context mein di jaa sakti hain) — उसे ध्यान से पढ़ो/सुनो, patterns pehchano (jaise baar-baar wahi galti), aur seedhi, practical, non-judgmental coaching do — sirf motivational baatein nahi, balki concrete cheezein jo woh agli baar try kar sake. Kabhi financial advice ya 'yeh stock/trade lo' jaisi buy/sell tip mat do — sirf psychology aur discipline par focus karo. Hindi/Hinglish mix mein baat karo.";
+    const langNote = config.replyLang === 'hindi' ? ' अपना पूरा जवाब शुद्ध हिंदी (देवनागरी) में दो, English words minimum रखो।'
+      : config.replyLang === 'english' ? ' Reply fully in plain English, no Hindi words.'
+      : '';
+
+    // ---------- Long-term Memory: inject remembered facts + let the model add new ones ----------
+    const memoryContext = (memoryNotes && memoryNotes.length)
+      ? ('\n\nUSER के बारे में तुम्हें ये लंबे-समय की बातें (long-term memory) हमेशा याद हैं, chahe conversation history clear ho jaaye — inhe dhyan mein rakhkar personalized jawab do:\n- ' + memoryNotes.join('\n- '))
+      : '';
+    const memoryInstruction = opts.quiet ? '' :
+      '\n\nAgar isi baatcheet mein user ke baare mein koi naya, lambe samay tak yaad rakhne layak fact pata chale (jaise naam, pasand-napasand, trading style, goals, important life details), to apne poore jawab ke bilkul end mein ek nayi separate line mein likho: [[REMEMBER: <chhota, clear fact>]] — yeh sirf ARIA ke internal system ke liye hai, user ko yeh line dikhegi nahi. Agar koi naya important fact nahi hai to bilkul mat likhna, aur ek reply mein zyada se zyada 2 aisi lines likho.';
+    const systemInstruction = { parts:[{ text: (mode === 'trader' ? traderPersona : friendPersona) + langNote + memoryContext + memoryInstruction }] };
+
+    // speed fix: only send the recent chunk of history to the API (full history still stays saved locally) — smaller payload = faster reply
+    const CONTEXT_TURNS = 24;
+
+    // ---------- Function calling: ARIA can directly operate the app's tools ----------
+    const useTools = (config.functionCalling !== false) && !opts.quiet && !opts.noTools;
+
+    let thinkingSys = null;
+    let elapsedTimer = null;
+    if(!opts.quiet){
+      let secs = 0;
+      thinkingSys = document.createElement('div');
+      thinkingSys.className = 'msg sys';
+      thinkingSys.textContent = '⏳ ARIA सोच रही है...';
+      chat.appendChild(thinkingSys);
+      chat.scrollTop = chat.scrollHeight;
+      elapsedTimer = setInterval(()=>{
+        secs++;
+        thinkingSys.textContent = `⏳ ARIA सोच रही है... (${secs}s)${secs>=8 ? ' — internet धीमा लग रहा है' : ''}`;
+      }, 1000);
+    }
+
+    // performs one streaming round-trip against a given model, returns collected text + any function calls
+    async function streamOnce(modelName){
+      const contents = history.length > CONTEXT_TURNS ? history.slice(-CONTEXT_TURNS) : history;
+      const reqBody = { system_instruction: systemInstruction, contents };
+      if(useTools) reqBody.tools = [{ function_declarations: FUNCTION_DECLARATIONS }];
+      // streaming endpoint: reply text ke पहले हिस्से turant दिखने लगते हैं, poore जवाब का wait नहीं karna padta
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:streamGenerateContent?alt=sse&key=${config.apiKey}`;
+      const res = await fetch(url, {
+        method:'POST',
+        headers:{ 'Content-Type':'application/json' },
+        body: JSON.stringify(reqBody)
+      });
+      if(!res.ok || !res.body){
+        let msg = 'HTTP ' + res.status;
+        try{ const errData = await res.json(); if(errData && errData.error) msg = errData.error.message; }catch(e){}
+        throw new Error(msg);
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder('utf-8');
+      let buffer = '';
+      let fullText = '';
+      let fnCalls = [];
+      let liveTextEl = null;
+      let firstChunk = true;
+
+      while(true){
+        const { value, done } = await reader.read();
+        if(done) break;
+        buffer += decoder.decode(value, { stream:true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop();
+        for(const line of lines){
+          const trimmed = line.trim();
+          if(!trimmed.startsWith('data:')) continue;
+          const jsonStr = trimmed.slice(5).trim();
+          if(!jsonStr || jsonStr === '[DONE]') continue;
+          try{
+            const obj = JSON.parse(jsonStr);
+            const cand = obj.candidates && obj.candidates[0];
+            const parts = (cand && cand.content && cand.content.parts) || [];
+            const textPiece = parts.filter(p=>p.text).map(p=>p.text).join('');
+            parts.forEach(p=>{ if(p.functionCall) fnCalls.push(p.functionCall); });
+            if(textPiece || parts.some(p=>p.functionCall)){
+              if(firstChunk){
+                if(elapsedTimer){ clearInterval(elapsedTimer); elapsedTimer = null; }
+                if(thinkingSys){ thinkingSys.remove(); thinkingSys = null; }
+                firstChunk = false;
+              }
+            }
+            if(textPiece){
+              if(!liveTextEl && !opts.quiet) liveTextEl = createLiveAriaBubble();
+              fullText += textPiece;
+              if(liveTextEl){ liveTextEl.textContent = fullText; chat.scrollTop = chat.scrollHeight; }
+            }
+          }catch(e){ /* incomplete JSON chunk, ignore and continue buffering */ }
+        }
+      }
+      return { fullText, fnCalls, liveTextEl };
+    }
+
+    try{
+      let modelToUse = config.model;
+      let result;
+      try{
+        result = await streamOnce(modelToUse);
+      }catch(primaryErr){
+        // Model fallback: agar chuna hua model fail ho jaaye, ek halke fallback model se dobara try karo
+        if(!opts.quiet && config.fallbackModel && config.fallbackModel !== config.model){
+          addSys('⚠️ ' + config.model + ' से जवाब नहीं मिला, ' + config.fallbackModel + ' से try कर रहे हैं...');
+          modelToUse = config.fallbackModel;
+          result = await streamOnce(modelToUse);
+        } else {
+          throw primaryErr;
+        }
+      }
+
+      // ---------- Function-calling round trip: agar model ne tool call kiya, use locally chalao aur result wapas bhejo ----------
+      let depth = 0;
+      let anyFunctionCalled = false;
+      while(result.fnCalls && result.fnCalls.length && depth < 3){
+        anyFunctionCalled = true;
+        const fcParts = result.fnCalls.map(fc=>({ functionCall: fc }));
+        history.push({ role:'model', parts: result.fullText ? [...fcParts, { text: result.fullText }] : fcParts });
+        const responseParts = result.fnCalls.map(fc=>{
+          const outcome = executeFunctionCall(fc.name, fc.args || {});
+          return { functionResponse: { name: fc.name, response: { result: outcome } } };
+        });
+        history.push({ role:'function', parts: responseParts });
+        if(!opts.quiet) saveHistory(history);
+        depth++;
+        result = await streamOnce(modelToUse);
+      }
+
+      if(elapsedTimer){ clearInterval(elapsedTimer); elapsedTimer = null; }
+      if(thinkingSys){ thinkingSys.remove(); thinkingSys = null; }
+
+      const rawText = (result.fullText || '').trim();
+      let replyText = rawText.replace(/\[\[REMEMBER:\s*([\s\S]*?)\]\]/gi, (m, fact)=>{
+        addMemoryFact(fact.trim());
+        return '';
+      }).trim();
+      if(!replyText && !rawText && !anyFunctionCalled) replyText = '(कोई जवाब नहीं मिला)';
+      let liveTextEl = result.liveTextEl;
+      const isFiller = opts.quiet && /^\.{1,5}$/.test(replyText);
+      if(isFiller){
+        history.pop();
+        setState('idle');
+        return;
+      }
+      if(replyText){
+        history.push({ role:'model', parts:[{ text: replyText }] });
+        saveHistory(history);
+        if(liveTextEl) liveTextEl.textContent = replyText; else addMsg(replyText, 'aria');
+        speak(replyText);
+      } else {
+        setState('idle');
+        if(callMode) startListening();
+      }
+    }catch(e){
+      if(elapsedTimer){ clearInterval(elapsedTimer); elapsedTimer = null; }
+      if(thinkingSys){ thinkingSys.remove(); thinkingSys = null; }
+      addSys('❌ Error: ' + e.message + ' — internet slow/weak ho sakta hai, ya model overloaded. SETUP mein "gemini-3.1-flash-lite" जैसा हल्का model चुनकर try करें, वो तेज़ जवाब देता है।');
+      setState('idle');
+      if(callMode) startListening();
+    }
+  }
+
+  function sendText(){
+    const val = textInput.value.trim();
+    if(!val) return;
+    addMsg(val, 'user');
+    textInput.value = '';
+    callGemini([{ text: val }]);
+  }
+  sendBtn.addEventListener('click', sendText);
+  textInput.addEventListener('keydown', e=>{ if(e.key==='Enter') sendText(); });
+
+  // ---------- Voice input ----------
+  function buildRecognizer(){
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if(!SR){ addSys('⚠️ इस browser में voice input support नहीं है (Chrome पर try करें)।'); return null; }
+    const r = new SR();
+    r.lang = config.lang;
+    r.interimResults = false;
+    r.maxAlternatives = 1;
+    r.onresult = (e)=>{
+      const said = e.results[0][0].transcript;
+      if(said && said.trim()){
+        if(typeof tryVoiceCommand === 'function' && tryVoiceCommand(said)){
+          setState('idle');
+          if(callMode) setTimeout(()=>{ if(callMode) startListening(); }, 600);
+          return;
+        }
+        addMsg(said, 'user');
+        callGemini([{ text: said }]);
+      } else if(callMode){
+        startListening();
+      }
+    };
+    r.onerror = (e)=>{
+      listening = false;
+      micBtn.classList.remove('on');
+      if(e.error === 'no-speech' && callMode){
+        setState('idle');
+        setTimeout(()=>{ if(callMode) startListening(); }, 400);
+        return;
+      }
+      addSys('🎙 Voice error: ' + e.error);
+      setState('idle');
+    };
+    r.onend = ()=>{ listening = false; micBtn.classList.remove('on'); };
+    return r;
+  }
+
+  function startListening(){
+    if(listening) return;
+    recog = buildRecognizer();
+    if(!recog) return;
+    listening = true;
+    micBtn.classList.add('on');
+    setState('listening');
+    try{ recog.start(); }catch(e){ listening=false; }
+  }
+  function stopListening(){
+    if(recog){ try{ recog.stop(); }catch(e){} }
+    listening = false;
+    micBtn.classList.remove('on');
+    setState('idle');
+  }
+
+  micBtn.addEventListener('click', ()=>{
+    if(!config.apiKey){ addSys('पहले SETUP में API key डालें।'); setupOverlay.classList.add('show'); return; }
+    if(listening){ stopListening(); return; }
+    startListening();
+  });
+
+  callModeBtn.addEventListener('click', ()=>{
+    if(!config.apiKey){ addSys('पहले SETUP में API key डालें।'); setupOverlay.classList.add('show'); return; }
+    callMode = !callMode;
+    if(callMode){
+      callModeBtn.textContent = '📞 CALL MODE बंद करें';
+      callModeBtn.classList.add('active');
+      addSys('📞 Call mode ON — अब बस बोलिए, ARIA खुद सुनेगी और जवाब देगी।');
+      startListening();
+    }else{
+      callModeBtn.textContent = '📞 CALL MODE शुरू करें';
+      callModeBtn.classList.remove('active');
+      window.speechSynthesis.cancel();
+      stopListening();
+      addSys('📞 Call mode बंद।');
+    }
+  });
+
+  // ---------- Mode toggle (friend / trading coach) ----------
+  const modeFriendBtn = document.getElementById('modeFriendBtn');
+  const modeTraderBtn = document.getElementById('modeTraderBtn');
+  function applyModeUI(){
+    modeFriendBtn.classList.toggle('active', mode==='friend');
+    modeTraderBtn.classList.toggle('active', mode==='trader');
+  }
+  applyModeUI();
+  modeFriendBtn.addEventListener('click', ()=>{ mode='friend'; try{localStorage.setItem(MODE_KEY,mode);}catch(e){} applyModeUI(); addSys('🤝 Dost mode ON'); });
+  modeTraderBtn.addEventListener('click', ()=>{ mode='trader'; try{localStorage.setItem(MODE_KEY,mode);}catch(e){} applyModeUI(); addSys('🧠 Trading Coach mode ON — अब आप journal (📓) भी लिख सकते हैं।'); });
+
+  // ---------- Trading Journal ----------
+  const journalBtn = document.getElementById('journalBtn');
+  const journalOverlay = document.getElementById('journalOverlay');
+  const journalTextarea = document.getElementById('journalTextarea');
+  const journalList = document.getElementById('journalList');
+  const saveJournalBtn = document.getElementById('saveJournal');
+  const closeJournalBtn = document.getElementById('closeJournal');
+  const journalMicBtn = document.getElementById('journalMicBtn');
+
+  function renderJournalList(){
+    journalList.innerHTML = '';
+    if(journalEntries.length === 0){
+      journalList.innerHTML = '<div class="hint">अभी कोई entry नहीं — पहली entry नीचे लिखें।</div>';
+      return;
+    }
+    journalEntries.slice().reverse().forEach(e=>{
+      const div = document.createElement('div');
+      div.className = 'journal-entry';
+      let tags = '';
+      if(e.mood) tags += `<span class="tag-pill">${e.mood}</span>`;
+      if(e.outcome) tags += `<span class="tag-pill">${e.outcome==='win'?'✅ Win':e.outcome==='loss'?'❌ Loss':e.outcome==='breakeven'?'➖ Breakeven':'🚫 No trade'}</span>`;
+      if(e.pnl) tags += `<span class="tag-pill">₹/$ ${e.pnl}</span>`;
+      div.innerHTML = `<div class="je-date">${e.date}</div><div style="margin:4px 0;">${tags}</div><div class="je-text"></div>`;
+      div.querySelector('.je-text').textContent = e.text;
+      journalList.appendChild(div);
+    });
+  }
+
+  journalBtn.addEventListener('click', ()=>{
+    renderJournalList();
+    journalOverlay.classList.add('show');
+  });
+  closeJournalBtn.addEventListener('click', ()=> journalOverlay.classList.remove('show'));
+
+  journalMicBtn.addEventListener('click', ()=>{
+    const r = buildRecognizer();
+    if(!r) return;
+    addSys('🎙 बोलिए, journal लिखी जा रही है...');
+    r.onresult = (e)=>{
+      const said = e.results[0][0].transcript;
+      journalTextarea.value = (journalTextarea.value ? journalTextarea.value + ' ' : '') + said;
+    };
+    r.onend = ()=>{};
+    try{ r.start(); }catch(e){}
+  });
+
+  saveJournalBtn.addEventListener('click', ()=>{
+    const text = journalTextarea.value.trim();
+    if(!text) return;
+    const mood = document.getElementById('journalMood').value;
+    const outcome = document.getElementById('journalOutcome').value;
+    const pnl = document.getElementById('journalPnl').value.trim();
+    const entry = { date: new Date().toLocaleString('hi-IN'), text, mood, outcome, pnl };
+    journalEntries.push(entry);
+    saveJournalEntries(journalEntries);
+    renderJournalList();
+    journalTextarea.value = '';
+    document.getElementById('journalPnl').value = '';
+    document.getElementById('journalOutcome').value = '';
+    journalOverlay.classList.remove('show');
+
+    // switch to trader mode automatically for the feedback conversation
+    mode = 'trader';
+    try{ localStorage.setItem(MODE_KEY, mode); }catch(e){}
+    applyModeUI();
+
+    const recentContext = journalEntries.slice(-5).map(e=>`[${e.date}] ${e.text}`).join('\n');
+    addMsg('📓 आज की journal: ' + text, 'user');
+    callGemini([{ text: `मेरी हाल की trading journal entries:\n${recentContext}\n\nइनको ध्यान से देखकर मेरी trading psychology पर coaching दो — patterns bhi bataiye agar dikhein.` }]);
+  });
+
+  // ---------- Trading Calculator ----------
+  const calcBtn = document.getElementById('calcBtn');
+  const calcOverlay = document.getElementById('calcOverlay');
+  const closeCalc = document.getElementById('closeCalc');
+  const calcRun = document.getElementById('calcRun');
+  const calcResult = document.getElementById('calcResult');
+  calcBtn.addEventListener('click', ()=> calcOverlay.classList.add('show'));
+  closeCalc.addEventListener('click', ()=> calcOverlay.classList.remove('show'));
+  calcRun.addEventListener('click', ()=>{
+    const bal = parseFloat(document.getElementById('calcBalance').value);
+    const riskPct = parseFloat(document.getElementById('calcRiskPct').value);
+    const entry = parseFloat(document.getElementById('calcEntry').value);
+    const sl = parseFloat(document.getElementById('calcSL').value);
+    const target = parseFloat(document.getElementById('calcTarget').value);
+    if(!bal || !riskPct || !entry || !sl || entry === sl){
+      calcResult.textContent = '⚠️ कम से कम Balance, Risk%, Entry और Stop Loss भरें (Entry ≠ SL)।';
+      return;
+    }
+    const riskAmount = bal * (riskPct/100);
+    const perUnitRisk = Math.abs(entry - sl);
+    const positionSize = riskAmount / perUnitRisk;
+    let rr = '';
+    if(target){
+      const reward = Math.abs(target - entry);
+      rr = (reward/perUnitRisk).toFixed(2) + ' : 1';
+    }
+    calcResult.textContent =
+      `Risk Amount: ${riskAmount.toFixed(2)}\n` +
+      `Per-unit Risk: ${perUnitRisk.toFixed(2)}\n` +
+      `Position Size: ${positionSize.toFixed(2)} units/shares\n` +
+      (rr ? `Risk:Reward = ${rr}` : 'Target दें तो Risk:Reward भी दिखेगा');
+  });
+
+  // ---------- Live Watch mode (periodic camera glances) ----------
+  const liveWatchBtn = document.getElementById('liveWatchBtn');
+  let liveWatchActive = false;
+  let liveWatchTimer = null;
+  let liveWatchStream = null;
+  async function startLiveWatch(){
+    try{
+      liveWatchStream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'environment' } });
+      camPreview.srcObject = liveWatchStream;
+      liveWatchActive = true;
+      liveWatchBtn.classList.add('on');
+      addSys('👁 Live Watch ON — ARIA हर ~8 सेकंड में एक नज़र डालेगी और ज़रूरी लगा तो बताएगी।');
+      liveWatchTimer = setInterval(()=>{
+        if(!liveWatchActive) return;
+        const w = camPreview.videoWidth, h = camPreview.videoHeight;
+        if(!w) return;
+        camCanvas.width = w; camCanvas.height = h;
+        camCanvas.getContext('2d').drawImage(camPreview, 0, 0, w, h);
+        const base64 = camCanvas.toDataURL('image/jpeg', 0.7).split(',')[1];
+        callGemini([
+          { text: 'यह लगातार चल रहा live-watch frame है। सिर्फ तभी कुछ बोलो अगर वाकई कुछ ज़रूरी/दिलचस्प दिख रहा हो, वरना सिर्फ "..." जवाब दो।' },
+          { inline_data: { mime_type:'image/jpeg', data: base64 } }
+        ], { quiet:true });
+      }, 8000);
+    }catch(e){
+      addSys('❌ Camera access नहीं मिली: ' + e.message);
+    }
+  }
+  function stopLiveWatch(){
+    liveWatchActive = false;
+    if(liveWatchTimer) clearInterval(liveWatchTimer);
+    if(liveWatchStream) liveWatchStream.getTracks().forEach(t=>t.stop());
+    liveWatchBtn.classList.remove('on');
+    addSys('👁 Live Watch बंद।');
+  }
+  liveWatchBtn.addEventListener('click', ()=>{
+    if(!config.apiKey){ addSys('पहले SETUP में API key डालें।'); setupOverlay.classList.add('show'); return; }
+    if(liveWatchActive) stopLiveWatch(); else startLiveWatch();
+  });
+
+  // ================= NEW FEATURES BLOCK =================
+
+  // ---------- 6. Theme toggle ----------
+  const themeBtn = document.getElementById('themeBtn');
+  function applyTheme(t){
+    document.body.classList.toggle('light', t==='light');
+    themeBtn.textContent = t==='light' ? '☀️' : '🌙';
+  }
+  let currentTheme = (function(){ try{ return localStorage.getItem(THEME_KEY) || 'dark'; }catch(e){ return 'dark'; } })();
+  applyTheme(currentTheme);
+  themeBtn.addEventListener('click', ()=>{
+    currentTheme = currentTheme==='light' ? 'dark' : 'light';
+    try{ localStorage.setItem(THEME_KEY, currentTheme); }catch(e){}
+    applyTheme(currentTheme);
+  });
+
+  // ---------- Accent color theme, custom wallpaper, custom avatar/face ----------
+  const COLOR_THEME_KEY = 'aria_color_theme_v1';
+  const WALLPAPER_KEY = 'aria_wallpaper_v1';
+  const AVATAR_KEY = 'aria_avatar_v1';
+  const wallpaperLayer = document.getElementById('wallpaperLayer');
+  const avatarImg = document.getElementById('avatarImg');
+
+  function applyColorTheme(cls){
+    document.body.classList.remove('theme-purple','theme-pink','theme-green','theme-gold');
+    if(cls) document.body.classList.add(cls);
+    document.querySelectorAll('#swatchRow .swatch').forEach(s=> s.classList.toggle('active', (s.dataset.theme||'')===(cls||'')));
+  }
+  let savedColorTheme = (function(){ try{ return localStorage.getItem(COLOR_THEME_KEY) || ''; }catch(e){ return ''; } })();
+  applyColorTheme(savedColorTheme);
+  document.querySelectorAll('#swatchRow .swatch').forEach(s=>{
+    s.addEventListener('click', ()=>{
+      savedColorTheme = s.dataset.theme || '';
+      try{ localStorage.setItem(COLOR_THEME_KEY, savedColorTheme); }catch(e){}
+      applyColorTheme(savedColorTheme);
+    });
+  });
+
+  function applyWallpaper(dataUrl){
+    if(dataUrl){
+      wallpaperLayer.style.backgroundImage = `url(${dataUrl})`;
+      wallpaperLayer.classList.add('show');
+      document.body.classList.add('has-wallpaper');
+    } else {
+      wallpaperLayer.style.backgroundImage = '';
+      wallpaperLayer.classList.remove('show');
+      document.body.classList.remove('has-wallpaper');
+    }
+  }
+  let savedWallpaper = null;
+  try{ savedWallpaper = localStorage.getItem(WALLPAPER_KEY); }catch(e){}
+  if(savedWallpaper) applyWallpaper(savedWallpaper);
+  document.getElementById('wallpaperPick').addEventListener('click', ()=> document.getElementById('wallpaperFileInput').click());
+  document.getElementById('wallpaperFileInput').addEventListener('change', (e)=>{
+    const file = e.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = ()=>{
+      const dataUrl = reader.result;
+      try{
+        localStorage.setItem(WALLPAPER_KEY, dataUrl);
+        applyWallpaper(dataUrl);
+        addSys('🖼 Wallpaper लगा दी गई।');
+      }catch(err){
+        addSys('⚠️ यह photo save करने के लिए बहुत बड़ी है, कोई छोटी photo try करें।');
+      }
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  });
+  document.getElementById('wallpaperRemove').addEventListener('click', ()=>{
+    try{ localStorage.removeItem(WALLPAPER_KEY); }catch(e){}
+    applyWallpaper(null);
+    addSys('🖼 Wallpaper हटा दी गई।');
+  });
+
+  function applyAvatar(dataUrl){
+    if(dataUrl){
+      avatarImg.src = dataUrl;
+      orb.classList.add('has-avatar');
+    } else {
+      avatarImg.src = '';
+      orb.classList.remove('has-avatar');
+    }
+  }
+  let savedAvatar = null;
+  try{ savedAvatar = localStorage.getItem(AVATAR_KEY); }catch(e){}
+  if(savedAvatar) applyAvatar(savedAvatar);
+  document.getElementById('avatarPick').addEventListener('click', ()=> document.getElementById('avatarFileInput').click());
+  document.getElementById('avatarFileInput').addEventListener('change', (e)=>{
+    const file = e.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = ()=>{
+      const dataUrl = reader.result;
+      try{
+        localStorage.setItem(AVATAR_KEY, dataUrl);
+        applyAvatar(dataUrl);
+        addSys('👤 ARIA का face set हो गया।');
+      }catch(err){
+        addSys('⚠️ यह photo save करने के लिए बहुत बड़ी है, कोई छोटी photo try करें।');
+      }
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  });
+  document.getElementById('avatarRemove').addEventListener('click', ()=>{
+    try{ localStorage.removeItem(AVATAR_KEY); }catch(e){}
+    applyAvatar(null);
+    addSys('👤 Default orb वापस लगा दी गई।');
+  });
+
+  // (appearance overlay wired further below, after toolsOverlay/wireOverlay are defined)
+
+  // ---------- Tools menu open/close plumbing ----------
+  const toolsBtn = document.getElementById('toolsBtn');
+  const toolsOverlay = document.getElementById('toolsOverlay');
+  toolsBtn.addEventListener('click', ()=> toolsOverlay.classList.add('show'));
+  document.getElementById('closeTools').addEventListener('click', ()=> toolsOverlay.classList.remove('show'));
+  function wireOverlay(openBtnId, overlayId, closeBtnId, onOpen){
+    document.getElementById(openBtnId).addEventListener('click', ()=>{
+      toolsOverlay.classList.remove('show');
+      if(onOpen) onOpen();
+      document.getElementById(overlayId).classList.add('show');
+    });
+    document.getElementById(closeBtnId).addEventListener('click', ()=> document.getElementById(overlayId).classList.remove('show'));
+  }
+
+  // ---------- 1. Trade History / Stats ----------
+  function renderStats(){
+    const body = document.getElementById('statsBody');
+    const withOutcome = journalEntries.filter(e=> e.outcome === 'win' || e.outcome === 'loss' || e.outcome === 'breakeven');
+    if(withOutcome.length === 0){
+      body.innerHTML = '<div class="hint">Journal mein outcome (Win/Loss) tag kiye gaye entries yahan dikhengi.</div>';
+      return;
+    }
+    const wins = withOutcome.filter(e=>e.outcome==='win').length;
+    const losses = withOutcome.filter(e=>e.outcome==='loss').length;
+    const be = withOutcome.filter(e=>e.outcome==='breakeven').length;
+    const winRate = ((wins/withOutcome.length)*100).toFixed(1);
+    const totalPnl = withOutcome.reduce((s,e)=> s + (parseFloat(e.pnl)||0), 0);
+    const moodCounts = {};
+    journalEntries.forEach(e=>{ if(e.mood) moodCounts[e.mood] = (moodCounts[e.mood]||0)+1; });
+    const topMood = Object.entries(moodCounts).sort((a,b)=>b[1]-a[1])[0];
+    body.innerHTML = `
+      <div class="stat-row"><span>कुल Tagged Trades</span><span>${withOutcome.length}</span></div>
+      <div class="stat-row"><span>✅ Wins</span><span>${wins}</span></div>
+      <div class="stat-row"><span>❌ Losses</span><span>${losses}</span></div>
+      <div class="stat-row"><span>➖ Breakeven</span><span>${be}</span></div>
+      <div class="stat-row"><span>Win Rate</span><span>${winRate}%</span></div>
+      <div class="bar-track"><div class="bar-fill" style="width:${winRate}%"></div></div>
+      <div class="stat-row" style="margin-top:10px;"><span>Total P&L</span><span>${totalPnl.toFixed(2)}</span></div>
+      ${topMood ? `<div class="stat-row"><span>सबसे ज़्यादा Mood</span><span>${topMood[0]} (${topMood[1]}x)</span></div>` : ''}
+    `;
+
+    // ---------- Emotion Pattern Detection ----------
+    const byMood = {};
+    withOutcome.filter(e=> e.mood && (e.outcome==='win' || e.outcome==='loss')).forEach(e=>{
+      byMood[e.mood] = byMood[e.mood] || { win:0, loss:0 };
+      byMood[e.mood][e.outcome]++;
+    });
+    let worstMood = null, worstRate = 0;
+    Object.entries(byMood).forEach(([m,c])=>{
+      const total = c.win + c.loss;
+      if(total < 2) return;
+      const lossRate = c.loss/total;
+      if(lossRate > worstRate){ worstRate = lossRate; worstMood = m; }
+    });
+    if(worstMood && worstRate > 0.5){
+      const div = document.createElement('div');
+      div.className = 'hint';
+      div.style.marginTop = '10px';
+      div.textContent = `🧠 Pattern: जब mood "${worstMood}" रहा, तब loss rate ${(worstRate*100).toFixed(0)}% रहा — इस mood में trade लेने से पहले एक बार रुककर सोचें।`;
+      body.appendChild(div);
+    }
+  }
+  wireOverlay('openStats','statsOverlay','closeStats', renderStats);
+  wireOverlay('openAppearance','appearanceOverlay','closeAppearance', null);
+
+  // ---------- 18. Multiple Account Tracker ----------
+  function loadAccounts(){ try{ const r = localStorage.getItem(ACCOUNTS_KEY); return r? JSON.parse(r):[]; }catch(e){ return []; } }
+  function saveAccounts(a){ try{ localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(a)); }catch(e){} }
+  let accounts = loadAccounts();
+  setTimeout(()=>{ try{ populateAcctSelect(); }catch(e){} }, 0);
+  function renderAccounts(){
+    const list = document.getElementById('acctList');
+    list.innerHTML = '';
+    accounts.forEach((a,i)=>{
+      const div = document.createElement('div');
+      div.className = 'account-chip';
+      div.innerHTML = `<span>${a.name} — ${a.balance}</span>`;
+      const del = document.createElement('button');
+      del.textContent = '🗑';
+      del.addEventListener('click', ()=>{ accounts.splice(i,1); saveAccounts(accounts); renderAccounts(); populateAcctSelect(); });
+      div.appendChild(del);
+      list.appendChild(div);
+    });
+    populateAcctSelect();
+  }
+  function populateAcctSelect(){
+    const sel = document.getElementById('calcAcctSelect');
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">— manually भरें —</option>';
+    accounts.forEach((a,i)=>{
+      const opt = document.createElement('option');
+      opt.value = i; opt.textContent = a.name + ' (' + a.balance + ')';
+      sel.appendChild(opt);
+    });
+    sel.value = cur && accounts[cur] ? cur : '';
+  }
+  document.getElementById('calcAcctSelect').addEventListener('change', (e)=>{
+    const idx = e.target.value;
+    if(idx !== '' && accounts[idx]) document.getElementById('calcBalance').value = accounts[idx].balance;
+  });
+  document.getElementById('acctAdd').addEventListener('click', ()=>{
+    const name = document.getElementById('acctName').value.trim();
+    const bal = parseFloat(document.getElementById('acctBalance').value);
+    if(!name || !bal) return;
+    accounts.push({ name, balance: bal });
+    saveAccounts(accounts);
+    document.getElementById('acctName').value = '';
+    document.getElementById('acctBalance').value = '';
+    renderAccounts();
+  });
+  wireOverlay('openAccounts','accountsOverlay','closeAccounts', renderAccounts);
+
+  // ---------- 2. Crypto Price Alerts ----------
+  function loadAlerts(){ try{ const r = localStorage.getItem(ALERTS_KEY); return r? JSON.parse(r):[]; }catch(e){ return []; } }
+  function saveAlerts(a){ try{ localStorage.setItem(ALERTS_KEY, JSON.stringify(a)); }catch(e){} }
+  let priceAlerts = loadAlerts();
+  let alertPollTimer = null;
+  function renderAlerts(){
+    const list = document.getElementById('alertList');
+    list.innerHTML = '';
+    priceAlerts.forEach((a,i)=>{
+      const div = document.createElement('div');
+      div.className = 'account-chip';
+      div.innerHTML = `<span>${a.coin} ${a.dir==='above'?'>':'<'} $${a.price}</span>`;
+      const del = document.createElement('button');
+      del.textContent = '🗑';
+      del.addEventListener('click', ()=>{ priceAlerts.splice(i,1); saveAlerts(priceAlerts); renderAlerts(); });
+      div.appendChild(del);
+      list.appendChild(div);
+    });
+  }
+  document.getElementById('alertAdd').addEventListener('click', ()=>{
+    const coin = document.getElementById('alertCoin').value.trim().toLowerCase();
+    const dir = document.getElementById('alertDir').value;
+    const price = parseFloat(document.getElementById('alertPrice').value);
+    if(!coin || !price) return;
+    priceAlerts.push({ coin, dir, price, firedAt:null });
+    saveAlerts(priceAlerts);
+    document.getElementById('alertCoin').value=''; document.getElementById('alertPrice').value='';
+    renderAlerts();
+    startAlertPolling();
+  });
+  async function checkAlerts(){
+    const active = priceAlerts.filter(a=>!a.firedAt);
+    if(active.length===0){ document.getElementById('alertStatusHint').textContent=''; return; }
+    const ids = [...new Set(active.map(a=>a.coin))].join(',');
+    try{
+      const res = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${encodeURIComponent(ids)}&vs_currencies=usd`);
+      const data = await res.json();
+      document.getElementById('alertStatusHint').textContent = '🔄 Last checked: ' + new Date().toLocaleTimeString('hi-IN');
+      priceAlerts.forEach(a=>{
+        if(a.firedAt) return;
+        const p = data[a.coin] && data[a.coin].usd;
+        if(p == null) return;
+        if((a.dir==='above' && p >= a.price) || (a.dir==='below' && p <= a.price)){
+          a.firedAt = new Date().toLocaleString('hi-IN');
+          addSys(`🔔 Price Alert! ${a.coin} अभी $${p} है — आपका target ($${a.price} ${a.dir==='above'?'से ऊपर':'से नीचे'}) hit हो गया।`);
+          if(config.speak) speak(`Price alert! ${a.coin} apna target hit kar chuka hai.`);
+        }
+      });
+      saveAlerts(priceAlerts);
+      renderAlerts();
+    }catch(e){
+      document.getElementById('alertStatusHint').textContent = '⚠️ Price fetch नहीं हो पाया (internet check करें)।';
+    }
+  }
+  function startAlertPolling(){
+    if(alertPollTimer) return;
+    checkAlerts();
+    alertPollTimer = setInterval(checkAlerts, 60000);
+  }
+  if(priceAlerts.some(a=>!a.firedAt)) startAlertPolling();
+  wireOverlay('openAlerts','alertsOverlay','closeAlerts', renderAlerts);
+
+  // ---------- 9. Session Timer (overtrading guard) ----------
+  let sessionTimerInterval = null;
+  let sessionEndAt = null;
+  function updateTimerStatus(){
+    const statusEl = document.getElementById('timerStatus');
+    if(!sessionEndAt){ statusEl.textContent = 'कोई session active नहीं।'; return; }
+    const remain = Math.max(0, sessionEndAt - Date.now());
+    const mins = Math.floor(remain/60000), secs = Math.floor((remain%60000)/1000);
+    statusEl.textContent = `⏱ बचे हुए: ${mins}m ${secs}s`;
+    if(remain <= 0){
+      clearInterval(sessionTimerInterval);
+      sessionTimerInterval = null; sessionEndAt = null;
+      addSys('⏱ Session time खत्म! अब trading रोक दें, overtrading से बचें — थोड़ा break लें।');
+      if(config.speak) speak('Session time khatam ho gaya. Ab trading rok dein, overtrading se bachein.');
+      statusEl.textContent = 'Session खत्म हो गया।';
+    }
+  }
+  document.getElementById('timerStart').addEventListener('click', ()=>{
+    const mins = parseFloat(document.getElementById('timerMinutes').value);
+    if(!mins) return;
+    sessionEndAt = Date.now() + mins*60000;
+    if(sessionTimerInterval) clearInterval(sessionTimerInterval);
+    sessionTimerInterval = setInterval(updateTimerStatus, 1000);
+    updateTimerStatus();
+    addSys(`⏱ ${mins} मिनट का trading session शुरू हुआ।`);
+  });
+  document.getElementById('timerStop').addEventListener('click', ()=>{
+    if(sessionTimerInterval) clearInterval(sessionTimerInterval);
+    sessionTimerInterval = null; sessionEndAt = null;
+    document.getElementById('timerStatus').textContent = 'Session रोक दिया गया।';
+  });
+  wireOverlay('openTimer','timerOverlay','closeTimer', updateTimerStatus);
+
+  // ---------- 10. Goal Tracker ----------
+  function loadGoal(){ try{ const r = localStorage.getItem(GOAL_KEY); return r? JSON.parse(r): {target:0,current:0}; }catch(e){ return {target:0,current:0}; } }
+  function saveGoal(g){ try{ localStorage.setItem(GOAL_KEY, JSON.stringify(g)); }catch(e){} }
+  let goalData = loadGoal();
+  function renderGoal(){
+    document.getElementById('goalTarget').value = goalData.target || '';
+    document.getElementById('goalCurrent').value = goalData.current || '';
+    const body = document.getElementById('goalBody');
+    if(!goalData.target){ body.innerHTML = '<div class="hint">Target set karke progress track karein.</div>'; return; }
+    const pct = Math.min(100, ((goalData.current/goalData.target)*100)).toFixed(1);
+    body.innerHTML = `<div class="stat-row"><span>Progress</span><span>${pct}%</span></div><div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div>
+    <div class="stat-row" style="margin-top:8px;"><span>Target</span><span>${goalData.target}</span></div>
+    <div class="stat-row"><span>Achieved</span><span>${goalData.current}</span></div>
+    <div class="stat-row"><span>Bacha hua</span><span>${Math.max(0, goalData.target-goalData.current)}</span></div>`;
+  }
+  document.getElementById('goalSave').addEventListener('click', ()=>{
+    goalData = { target: parseFloat(document.getElementById('goalTarget').value)||0, current: parseFloat(document.getElementById('goalCurrent').value)||0 };
+    saveGoal(goalData);
+    renderGoal();
+  });
+  wireOverlay('openGoal','goalOverlay','closeGoal', renderGoal);
+
+  // ---------- 7. Multiple Chat Sessions ----------
+  function loadSessions(){ try{ const r = localStorage.getItem(SESSIONS_KEY); return r? JSON.parse(r): []; }catch(e){ return []; } }
+  function saveSessions(s){ try{ localStorage.setItem(SESSIONS_KEY, JSON.stringify(s)); }catch(e){} }
+  let chatSessions = loadSessions();
+  let activeSession = (function(){ try{ return localStorage.getItem(ACTIVE_SESSION_KEY) || 'default'; }catch(e){ return 'default'; } })();
+  function renderSessions(){
+    const list = document.getElementById('sessionList');
+    list.innerHTML = '';
+    const all = [{id:'default', name:'मुख्य Chat (Default)'}, ...chatSessions];
+    all.forEach(s=>{
+      const div = document.createElement('div');
+      div.className = 'account-chip';
+      div.innerHTML = `<span>${s.name}${s.id===activeSession?' ✅':''}</span>`;
+      const btn = document.createElement('button');
+      btn.textContent = s.id===activeSession ? 'Active' : 'Switch';
+      btn.style.color = 'var(--cyan)';
+      btn.addEventListener('click', ()=> switchSession(s.id));
+      div.appendChild(btn);
+      list.appendChild(div);
+    });
+  }
+  function switchSession(id){
+    activeSession = id;
+    try{ localStorage.setItem(ACTIVE_SESSION_KEY, id); }catch(e){}
+    const key = id==='default' ? HISTORY_KEY : (HISTORY_KEY + '_' + id);
+    history = (function(){ try{ const r = localStorage.getItem(key); return r? JSON.parse(r):[]; }catch(e){ return []; } })();
+    chat.innerHTML = '';
+    history.forEach(h=>{
+      const text = (h.parts||[]).map(p=>p.text||'').join(' ').trim();
+      if(text) addMsg(text, h.role==='user' ? 'user' : 'aria', null, false);
+    });
+    addSys('💬 Session बदली गई।');
+    renderSessions();
+    toolsOverlay.classList.remove('show');
+    document.getElementById('sessionsOverlay').classList.remove('show');
+  }
+  document.getElementById('sessionAdd').addEventListener('click', ()=>{
+    const name = document.getElementById('newSessionName').value.trim();
+    if(!name) return;
+    const id = 's' + Date.now();
+    chatSessions.push({ id, name });
+    saveSessions(chatSessions);
+    document.getElementById('newSessionName').value = '';
+    renderSessions();
+    switchSession(id);
+  });
+  wireOverlay('openSessions','sessionsOverlay','closeSessions', renderSessions);
+  // override saveHistory to persist to the active session's key
+  const _origSaveHistory = saveHistory;
+  saveHistory = function(h){
+    const key = activeSession==='default' ? HISTORY_KEY : (HISTORY_KEY + '_' + activeSession);
+    try{ localStorage.setItem(key, JSON.stringify(h.slice(-200))); }catch(e){}
+  };
+
+  // ---------- 3. Daily Reminder ----------
+  function loadReminder(){ try{ const r = localStorage.getItem(REMINDER_KEY); return r? JSON.parse(r): null; }catch(e){ return null; } }
+  function saveReminder(r){ try{ localStorage.setItem(REMINDER_KEY, JSON.stringify(r)); }catch(e){} }
+  let reminder = loadReminder();
+  let lastReminderFireDate = null;
+  function renderReminderStatus(){
+    const el = document.getElementById('reminderStatus');
+    if(reminder && reminder.time){
+      document.getElementById('reminderTime').value = reminder.time;
+      document.getElementById('reminderMsg').value = reminder.msg || '';
+      el.textContent = `✅ रोज़ ${reminder.time} बजे reminder active है।`;
+    } else {
+      el.textContent = 'कोई reminder set नहीं है।';
+    }
+  }
+  document.getElementById('reminderSave').addEventListener('click', ()=>{
+    const time = document.getElementById('reminderTime').value;
+    const msg = document.getElementById('reminderMsg').value.trim() || 'Trading session का समय हो गया है!';
+    if(!time) return;
+    reminder = { time, msg };
+    saveReminder(reminder);
+    renderReminderStatus();
+    if('Notification' in window && Notification.permission === 'default') Notification.requestPermission();
+  });
+  document.getElementById('reminderClear').addEventListener('click', ()=>{
+    reminder = null;
+    saveReminder(null);
+    renderReminderStatus();
+  });
+  wireOverlay('openReminder','reminderOverlay','closeReminder', renderReminderStatus);
+  setInterval(()=>{
+    if(!reminder || !reminder.time) return;
+    const now = new Date();
+    const hh = String(now.getHours()).padStart(2,'0'), mm = String(now.getMinutes()).padStart(2,'0');
+    const todayKey = now.toDateString();
+    if(`${hh}:${mm}` === reminder.time && lastReminderFireDate !== todayKey){
+      lastReminderFireDate = todayKey;
+      addSys('📅 Reminder: ' + reminder.msg);
+      if(config.speak) speak(reminder.msg);
+      if('Notification' in window && Notification.permission === 'granted'){
+        try{ new Notification('ARIA Reminder', { body: reminder.msg }); }catch(e){}
+      }
+    }
+  }, 20000);
+
+  // ---------- 8. Chart Screenshot Upload ----------
+  document.getElementById('uploadChartTool').addEventListener('click', ()=>{
+    toolsOverlay.classList.remove('show');
+    document.getElementById('chartFileInput').click();
+  });
+  document.getElementById('chartFileInput').addEventListener('change', (e)=>{
+    const file = e.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = ()=>{
+      const dataUrl = reader.result;
+      const base64 = dataUrl.split(',')[1];
+      addMsg('(chart screenshot भेजी) — analyze करो', 'user', dataUrl);
+      callGemini([
+        { text: 'यह एक trading chart का screenshot है। ध्यान से देखो और trend, key levels, ya jo bhi dikh raha hai uska analysis do. Koi buy/sell tip mat do, sirf jo dikh raha hai woh describe karo.' },
+        { inline_data: { mime_type: file.type || 'image/jpeg', data: base64 } }
+      ]);
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  });
+
+  // ---------- 11. News / Market Sentiment (AI-generated, not live) ----------
+  document.getElementById('newsTool').addEventListener('click', ()=>{
+    toolsOverlay.classList.remove('show');
+    addMsg('आज का market sentiment/mood बताओ', 'user');
+    callGemini([{ text: 'Trader ko aaj ke general market mood/sentiment ke baare mein ek chhota sa balanced overview do (jaise: typically kis tarah ka sentiment rehta hai, kin factors par dhyan dena chahiye). Yeh clearly bata dena ki tumhare paas live/real-time market data access nahi hai, isliye yeh sirf general guidance hai, exact numbers ya live price mat do.' }]);
+  });
+
+  // ---------- 13. Weekly Self-Review ----------
+  document.getElementById('weeklyReviewTool').addEventListener('click', ()=>{
+    toolsOverlay.classList.remove('show');
+    const weekAgo = Date.now() - 7*24*60*60*1000;
+    const recent = journalEntries.filter(e=>{
+      const t = Date.parse(e.date); return isNaN(t) ? true : t >= weekAgo;
+    });
+    if(recent.length === 0){ addSys('⚠️ Weekly review ke liye pichle 7 din ki journal entries nahi milin.'); return; }
+    const summary = recent.map(e=>`[${e.date}] mood:${e.mood||'-'} outcome:${e.outcome||'-'} pnl:${e.pnl||'-'} — ${e.text}`).join('\n');
+    mode = 'trader'; try{ localStorage.setItem(MODE_KEY, mode); }catch(e){} applyModeUI();
+    addMsg('🗓 इस हफ्ते की Weekly Self-Review करो', 'user');
+    callGemini([{ text: `यह पिछले 7 दिनों की मेरी journal entries हैं:\n${summary}\n\nInko analyze karke ek weekly self-review do — repeating mistakes, mood patterns, aur agle hafte ke liye 2-3 concrete suggestions.` }]);
+  });
+
+  // ---------- 16. Add to Home Screen ----------
+  let deferredA2HS = null;
+  window.addEventListener('beforeinstallprompt', (e)=>{ e.preventDefault(); deferredA2HS = e; });
+  document.getElementById('a2hsTool').addEventListener('click', ()=>{
+    toolsOverlay.classList.remove('show');
+    if(deferredA2HS){
+      deferredA2HS.prompt();
+    } else {
+      addSys('📲 Home Screen पर add करने के लिए: browser के menu (⋮ या Share) में जाकर "Add to Home Screen" चुनें।');
+    }
+  });
+
+  // ---------- 5. Export Journal ----------
+  document.getElementById('exportJournalBtn').addEventListener('click', ()=>{
+    if(journalEntries.length === 0){ addSys('⚠️ Export करने के लिए कोई journal entry नहीं है।'); return; }
+    const lines = journalEntries.map(e=>
+      `Date: ${e.date}\nMood: ${e.mood||'-'}\nOutcome: ${e.outcome||'-'}\nP&L: ${e.pnl||'-'}\n${e.text}\n${'-'.repeat(30)}`
+    ).join('\n');
+    const blob = new Blob([lines], { type:'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'ARIA_Trading_Journal_' + new Date().toISOString().slice(0,10) + '.txt';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    addSys('📤 Journal export ho gayi (.txt file download हुई)।');
+  });
+
+  // ---------- 15. PIN Lock ----------
+  const lockscreen = document.getElementById('lockscreen');
+  const pinDotsEls = () => document.querySelectorAll('#pinDots .pin-dot');
+  let pinBuffer = '';
+  function updatePinDots(){
+    pinDotsEls().forEach((d,i)=> d.classList.toggle('filled', i < pinBuffer.length));
+  }
+  function checkPin(){
+    if(pinBuffer.length < 4) return;
+    if(pinBuffer === config.pin){
+      lockscreen.classList.remove('show');
+      pinBuffer = ''; updatePinDots();
+      document.getElementById('pinError').textContent = '';
+    } else {
+      document.getElementById('pinError').textContent = '❌ गलत PIN, फिर कोशिश करें।';
+      pinBuffer = ''; updatePinDots();
+    }
+  }
+  document.querySelectorAll('.pin-pad button').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const d = btn.dataset.d;
+      if(d === 'clear'){ pinBuffer=''; }
+      else if(d === 'back'){ pinBuffer = pinBuffer.slice(0,-1); }
+      else if(pinBuffer.length < 4){ pinBuffer += d; }
+      updatePinDots();
+      if(pinBuffer.length === 4) checkPin();
+    });
+  });
+  if(config.pin && /^\d{4}$/.test(config.pin)){
+    lockscreen.classList.add('show');
+  }
+
+  // ================= AI Intelligence Upgrade (Memory + Function Calling + Fallback) =================
+
+  // ---------- Long-term Memory ----------
+  function renderMemoryList(){
+    const list = document.getElementById('memoryList');
+    if(!list) return;
+    list.innerHTML = '';
+    if(!memoryNotes.length){
+      list.innerHTML = '<div class="hint">अभी कुछ भी याद नहीं है — बातचीत करते रहें, ARIA खुद ज़रूरी बातें याद रखने लगेगी।</div>';
+      return;
+    }
+    memoryNotes.slice().reverse().forEach((fact)=>{
+      const realIdx = memoryNotes.indexOf(fact);
+      const div = document.createElement('div');
+      div.className = 'account-chip';
+      const span = document.createElement('span');
+      span.textContent = fact;
+      div.appendChild(span);
+      const del = document.createElement('button');
+      del.textContent = '🗑';
+      del.addEventListener('click', ()=>{
+        memoryNotes.splice(realIdx,1);
+        saveMemoryNotes(memoryNotes);
+        renderMemoryList();
+      });
+      div.appendChild(del);
+      list.appendChild(div);
+    });
+  }
+  function addMemoryFact(fact){
+    if(!fact) return;
+    const clean = fact.replace(/\s+/g,' ').trim();
+    if(!clean || clean.length > 200) return;
+    const already = memoryNotes.some(f => f.toLowerCase() === clean.toLowerCase());
+    if(already) return;
+    memoryNotes.push(clean);
+    if(memoryNotes.length > 60) memoryNotes = memoryNotes.slice(-60); // limit so system prompt na phoole
+    saveMemoryNotes(memoryNotes);
+    renderMemoryList();
+  }
+  const memoryBtn = document.getElementById('openMemory');
+  const memoryOverlay = document.getElementById('memoryOverlay');
+  if(memoryBtn) memoryBtn.addEventListener('click', ()=>{
+    toolsOverlay.classList.remove('show');
+    renderMemoryList();
+    memoryOverlay.classList.add('show');
+  });
+  const closeMemoryBtn = document.getElementById('closeMemory');
+  if(closeMemoryBtn) closeMemoryBtn.addEventListener('click', ()=> memoryOverlay.classList.remove('show'));
+  const memoryAddBtn = document.getElementById('memoryAddBtn');
+  if(memoryAddBtn) memoryAddBtn.addEventListener('click', ()=>{
+    const val = document.getElementById('memoryAddInput').value.trim();
+    if(!val) return;
+    addMemoryFact(val);
+    document.getElementById('memoryAddInput').value = '';
+  });
+  const memoryClearBtn = document.getElementById('memoryClearBtn');
+  if(memoryClearBtn) memoryClearBtn.addEventListener('click', ()=>{
+    memoryNotes = [];
+    saveMemoryNotes(memoryNotes);
+    renderMemoryList();
+    addSys('🧠 ARIA की सारी long-term memory मिटा दी गई।');
+  });
+
+  // ---------- Real Gemini Function Calling: ARIA can operate the app's own tools ----------
+  const FUNCTION_DECLARATIONS = [
+    { name:'open_calculator', description:'Risk management / position-size calculator khol do.' },
+    { name:'open_journal', description:'Trading journal overlay khol do jahan user aaj ki entry likh sake.' },
+    { name:'open_stats', description:'Trade history / stats overlay khol do.' },
+    { name:'open_accounts', description:'Multiple trading account tracker khol do.' },
+    { name:'open_alerts', description:'Crypto price alerts overlay khol do.' },
+    { name:'open_timer', description:'Session timer (overtrading guard) overlay khol do.' },
+    { name:'open_goal', description:'Monthly goal tracker overlay khol do.' },
+    { name:'open_sessions', description:'Alag-alag chat sessions ki list khol do.' },
+    { name:'open_reminder', description:'Daily reminder set karne ka overlay khol do.' },
+    { name:'open_tools_menu', description:'Sabhi tools ka main menu khol do.' },
+    { name:'open_memory', description:'ARIA ki long-term memory (yaad ki hui baatein) dikhane wala overlay khol do.' },
+    { name:'start_call_mode', description:'Continuous voice call mode shuru kar do.' },
+    { name:'stop_call_mode', description:'Continuous voice call mode band kar do.' },
+    { name:'switch_mode', description:'ARIA ka persona badlo — dost (friend) ya trading coach (trader) mein se ek chuno.',
+      parameters:{ type:'OBJECT', properties:{ mode:{ type:'STRING', enum:['friend','trader'], description:'friend ya trader' } }, required:['mode'] } },
+    { name:'change_theme_color', description:'ARIA ka accent color theme badlo.',
+      parameters:{ type:'OBJECT', properties:{ color:{ type:'STRING', enum:['cyan','purple','pink','green','gold'], description:'accent color' } }, required:['color'] } },
+    { name:'set_goal', description:'Monthly profit goal aur ab tak ka achieved profit set/update karo.',
+      parameters:{ type:'OBJECT', properties:{
+        target:{ type:'NUMBER', description:'Monthly profit target' },
+        current:{ type:'NUMBER', description:'Ab tak achieved profit' }
+      }, required:['target'] } },
+    { name:'add_price_alert', description:'Ek crypto coin ke liye naya price alert set karo (sirf CoinGecko coin id, jaise bitcoin, ethereum, solana).',
+      parameters:{ type:'OBJECT', properties:{
+        coin:{ type:'STRING', description:'CoinGecko coin id, e.g. bitcoin' },
+        direction:{ type:'STRING', enum:['above','below'], description:'price is se upar ya niche jaaye' },
+        price:{ type:'NUMBER', description:'target price in USD' }
+      }, required:['coin','direction','price'] } },
+    { name:'set_daily_reminder', description:'Roz ek fixed time par reminder set karo.',
+      parameters:{ type:'OBJECT', properties:{
+        time:{ type:'STRING', description:'24-hour HH:MM format, e.g. 21:00' },
+        message:{ type:'STRING', description:'Reminder ka message' }
+      }, required:['time'] } },
+    { name:'add_account', description:'Ek naya trading/exchange account balance ke saath add karo.',
+      parameters:{ type:'OBJECT', properties:{
+        name:{ type:'STRING', description:'Account/exchange ka naam' },
+        balance:{ type:'NUMBER', description:'Balance amount' }
+      }, required:['name','balance'] } },
+    { name:'remember_fact', description:'User ke baare mein koi important, lambe samay tak yaad rakhne layak fact turant save karo (name ke alawa jab user khud kahe "yaad rakho" jaisa kuch).',
+      parameters:{ type:'OBJECT', properties:{ fact:{ type:'STRING', description:'Chhota, clear fact jo yaad rakhna hai' } }, required:['fact'] } }
+  ];
+
+  function executeFunctionCall(name, args){
+    args = args || {};
+    try{
+      switch(name){
+        case 'open_calculator': calcOverlay.classList.add('show'); addSys('🧮 Calculator खोला गया (ARIA ने खुद किया)।'); return 'opened';
+        case 'open_journal': journalBtn.click(); addSys('📓 Journal खोली गई (ARIA ने खुद किया)।'); return 'opened';
+        case 'open_stats': renderStats(); document.getElementById('statsOverlay').classList.add('show'); addSys('📈 Stats खोले गए (ARIA ने खुद किया)।'); return 'opened';
+        case 'open_accounts': renderAccounts(); document.getElementById('accountsOverlay').classList.add('show'); addSys('💰 Accounts खोले गए (ARIA ने खुद किया)।'); return 'opened';
+        case 'open_alerts': renderAlerts(); document.getElementById('alertsOverlay').classList.add('show'); addSys('🔔 Alerts खोले गए (ARIA ने खुद किया)।'); return 'opened';
+        case 'open_timer': updateTimerStatus(); document.getElementById('timerOverlay').classList.add('show'); addSys('⏱ Session Timer खोला गया (ARIA ने खुद किया)।'); return 'opened';
+        case 'open_goal': renderGoal(); document.getElementById('goalOverlay').classList.add('show'); addSys('🎯 Goal Tracker खोला गया (ARIA ने खुद किया)।'); return 'opened';
+        case 'open_sessions': renderSessions(); document.getElementById('sessionsOverlay').classList.add('show'); addSys('💬 Chat Sessions खोले गए (ARIA ने खुद किया)।'); return 'opened';
+        case 'open_reminder': renderReminderStatus(); document.getElementById('reminderOverlay').classList.add('show'); addSys('📅 Reminder खोला गया (ARIA ने खुद किया)।'); return 'opened';
+        case 'open_tools_menu': toolsOverlay.classList.add('show'); addSys('🧩 Tools menu खोला गया (ARIA ने खुद किया)।'); return 'opened';
+        case 'open_memory': renderMemoryList(); memoryOverlay.classList.add('show'); addSys('🧠 Memory खोली गई (ARIA ने खुद किया)।'); return 'opened';
+        case 'start_call_mode': if(!callMode) callModeBtn.click(); return 'started';
+        case 'stop_call_mode': if(callMode) callModeBtn.click(); return 'stopped';
+        case 'switch_mode':
+          if(args.mode === 'trader') modeTraderBtn.click(); else if(args.mode === 'friend') modeFriendBtn.click();
+          return 'mode set to ' + args.mode;
+        case 'change_theme_color': {
+          const map = { cyan:'', purple:'theme-purple', pink:'theme-pink', green:'theme-green', gold:'theme-gold' };
+          const cls = map[args.color] !== undefined ? map[args.color] : '';
+          savedColorTheme = cls;
+          try{ localStorage.setItem(COLOR_THEME_KEY, savedColorTheme); }catch(e){}
+          applyColorTheme(savedColorTheme);
+          addSys('🎨 Theme color बदला गया: ' + args.color + ' (ARIA ने खुद किया)।');
+          return 'theme changed to ' + args.color;
+        }
+        case 'set_goal':
+          goalData = { target: parseFloat(args.target)||0, current: parseFloat(args.current)||0 };
+          saveGoal(goalData); renderGoal();
+          addSys('🎯 Goal set किया गया: target ' + goalData.target + ', achieved ' + goalData.current + ' (ARIA ने खुद किया)।');
+          return 'goal saved';
+        case 'add_price_alert':
+          priceAlerts.push({ coin: String(args.coin).toLowerCase(), dir: args.direction, price: parseFloat(args.price), firedAt:null });
+          saveAlerts(priceAlerts); renderAlerts(); startAlertPolling();
+          addSys('🔔 Alert set किया गया: ' + args.coin + ' ' + (args.direction==='above'?'>':'<') + ' $' + args.price + ' (ARIA ने खुद किया)।');
+          return 'alert set';
+        case 'set_daily_reminder':
+          reminder = { time: args.time, msg: args.message || 'Trading session का समय हो गया है!' };
+          saveReminder(reminder); renderReminderStatus();
+          if('Notification' in window && Notification.permission === 'default') Notification.requestPermission();
+          addSys('📅 रोज़ ' + args.time + ' बजे reminder set किया गया (ARIA ने खुद किया)।');
+          return 'reminder set';
+        case 'add_account':
+          accounts.push({ name: args.name, balance: parseFloat(args.balance)||0 });
+          saveAccounts(accounts); renderAccounts();
+          addSys('💰 Account जोड़ा गया: ' + args.name + ' (ARIA ने खुद किया)।');
+          return 'account added';
+        case 'remember_fact':
+          addMemoryFact(args.fact);
+          addSys('🧠 याद रख लिया: "' + args.fact + '"');
+          return 'remembered';
+        default:
+          return 'unknown function';
+      }
+    }catch(e){
+      return 'error: ' + e.message;
+    }
+  }
+
+  // ---------- Theme Mode: manual vs auto (system dark/light) ----------
+  function applyThemeMode(){
+    if(config.themeMode === 'auto' && window.matchMedia){
+      const prefersLight = window.matchMedia('(prefers-color-scheme: light)').matches;
+      currentTheme = prefersLight ? 'light' : 'dark';
+      try{ localStorage.setItem(THEME_KEY, currentTheme); }catch(e){}
+      applyTheme(currentTheme);
+    }
+  }
+  if(window.matchMedia){
+    try{
+      window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', applyThemeMode);
+    }catch(e){ /* older browsers */ }
+  }
+  applyThemeMode();
+
+  // ---------- Daily Auto-Summary (raat ~9 baje aaj ki journal ka summary) ----------
+  function getDailySummaryFireDate(){ try{ return localStorage.getItem(DAILY_SUMMARY_FIRE_KEY); }catch(e){ return null; } }
+  function setDailySummaryFireDate(d){ try{ localStorage.setItem(DAILY_SUMMARY_FIRE_KEY, d); }catch(e){} }
+  setInterval(()=>{
+    if(!config.dailySummary) return;
+    const now = new Date();
+    const todayKey = now.toDateString();
+    if(now.getHours() !== 21) return;
+    if(getDailySummaryFireDate() === todayKey) return;
+    const todays = journalEntries.filter(e=>{ const t = Date.parse(e.date); return isNaN(t) ? false : new Date(t).toDateString() === todayKey; });
+    setDailySummaryFireDate(todayKey);
+    if(todays.length === 0) return;
+    const summary = todays.map(e=>`mood:${e.mood||'-'} outcome:${e.outcome||'-'} pnl:${e.pnl||'-'} — ${e.text}`).join('\n');
+    addSys('🌙 आज की Daily Auto-Summary तैयार हो रही है...');
+    callGemini([{ text: `यह आज की मेरी journal entries हैं:\n${summary}\n\nInka ek chhota, warm daily summary do — aaj kaisa gaya, koi pattern dikha, aur kal ke liye ek chhoti si tip.` }], { noTools:true });
+  }, 60000);
+
+  // ---------- Backup / Restore all local data ----------
+  const ALL_DATA_KEYS = [STORAGE_KEY, HISTORY_KEY, JOURNAL_KEY, MODE_KEY, THEME_KEY, ACCOUNTS_KEY, ALERTS_KEY, GOAL_KEY, SESSIONS_KEY, ACTIVE_SESSION_KEY, REMINDER_KEY, MEMORY_KEY, COLOR_THEME_KEY, WALLPAPER_KEY, AVATAR_KEY];
+  const backupBtn = document.getElementById('openBackup');
+  const backupOverlay = document.getElementById('backupOverlay');
+  if(backupBtn) backupBtn.addEventListener('click', ()=>{
+    toolsOverlay.classList.remove('show');
+    document.getElementById('backupStatus').textContent = '';
+    backupOverlay.classList.add('show');
+  });
+  const closeBackupBtn = document.getElementById('closeBackup');
+  if(closeBackupBtn) closeBackupBtn.addEventListener('click', ()=> backupOverlay.classList.remove('show'));
+  const backupExportBtn = document.getElementById('backupExportBtn');
+  if(backupExportBtn) backupExportBtn.addEventListener('click', ()=>{
+    const dump = {};
+    ALL_DATA_KEYS.forEach(k=>{ try{ const v = localStorage.getItem(k); if(v!=null) dump[k] = v; }catch(e){} });
+    const blob = new Blob([JSON.stringify(dump, null, 2)], { type:'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'ARIA_Backup_' + new Date().toISOString().slice(0,10) + '.json';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    document.getElementById('backupStatus').textContent = '✅ Backup file download हो गई।';
+  });
+  const backupImportBtn = document.getElementById('backupImportBtn');
+  if(backupImportBtn) backupImportBtn.addEventListener('click', ()=> document.getElementById('backupFileInput').click());
+  const backupFileInput = document.getElementById('backupFileInput');
+  if(backupFileInput) backupFileInput.addEventListener('change', (e)=>{
+    const file = e.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = ()=>{
+      try{
+        const dump = JSON.parse(reader.result);
+        Object.keys(dump).forEach(k=>{ try{ localStorage.setItem(k, dump[k]); }catch(err){} });
+        document.getElementById('backupStatus').textContent = '✅ Restore हो गया — app को reload करें।';
+        addSys('💾 Backup restore हो गई। Changes लागू करने के लिए app reload/refresh करें।');
+      }catch(err){
+        document.getElementById('backupStatus').textContent = '❌ Invalid backup file।';
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  });
+
+  // ---------- 17. Voice Command Shortcuts ----------
+  function tryVoiceCommand(said){
+    const s = said.toLowerCase().trim();
+    const has = (...words) => words.some(w=> s.includes(w));
+    if(has('कैलकुलेटर','calculator')){ document.getElementById('calcOverlay').classList.add('show'); addSys('🧮 Calculator खोला।'); return true; }
+    if(has('journal','जर्नल','डायरी')){ journalBtn.click(); return true; }
+    if(has('टूल्स','tools','tool kholo')){ toolsOverlay.classList.add('show'); return true; }
+    if(has('थीम','theme')){ themeBtn.click(); return true; }
+    if(has('कॉल मोड','call mode')){ callModeBtn.click(); return true; }
+    if(has('स्टैट्स','stats','trade history')){ document.getElementById('openStats').click(); return true; }
+    if(has('सेटिंग','setting','setup')){ setupOverlay.classList.add('show'); return true; }
+    if(has('मेमोरी','memory','याद')){ document.getElementById('openMemory').click(); return true; }
+    if(has('बैकअप','backup','restore')){ document.getElementById('openBackup').click(); return true; }
+    return false;
+  }
+
+  // ---------- Camera vision ----------
+  async function openCamera(){
+    try{
+      camStream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'environment' } });
+      camPreview.srcObject = camStream;
+      addSys('📷 कैमरा तैयार — फिर से 📷 दबाकर फोटो लें');
+      camBtn.classList.add('on');
+      camBtn.dataset.ready = '1';
+    }catch(e){
+      addSys('❌ Camera access नहीं मिली: ' + e.message);
+    }
+  }
+  function captureAndSend(){
+    const w = camPreview.videoWidth, h = camPreview.videoHeight;
+    if(!w){ addSys('कैमरा अभी तैयार नहीं है, थोड़ा रुकें।'); return; }
+    camCanvas.width = w; camCanvas.height = h;
+    const ctx = camCanvas.getContext('2d');
+    ctx.drawImage(camPreview, 0, 0, w, h);
+    const dataUrl = camCanvas.toDataURL('image/jpeg', 0.85);
+    const base64 = dataUrl.split(',')[1];
+    addMsg('(फोटो भेजी) — इसमें क्या है बताओ', 'user', dataUrl);
+    callGemini([
+      { text: 'इस image में जो दिख रहा है उसे ध्यान से देखो और बताओ।' },
+      { inline_data: { mime_type:'image/jpeg', data: base64 } }
+    ]);
+    camStream.getTracks().forEach(t=>t.stop());
+    camBtn.classList.remove('on');
+    camBtn.dataset.ready = '';
+  }
+  camBtn.addEventListener('click', ()=>{
+    if(camBtn.dataset.ready === '1'){ captureAndSend(); }
+    else{ openCamera(); }
+  });
+
+  // ---------- Setup panel ----------
+  gearBtn.addEventListener('click', ()=> setupOverlay.classList.add('show'));
+  closeSetup.addEventListener('click', ()=> setupOverlay.classList.remove('show'));
+  saveSetup.addEventListener('click', ()=>{
+    config.apiKey = apiKeyInput.value.trim() || config.apiKey;
+    config.model = modelSelect.value;
+    config.lang = langSelect.value;
+    config.speak = autoSpeak.checked;
+    config.voiceName = document.getElementById('voiceSelect').value;
+    config.pitch = parseFloat(document.getElementById('pitchRange').value);
+    config.rate = parseFloat(document.getElementById('rateRange').value || '1');
+    config.voiceGender = document.getElementById('voiceGenderFilter').value;
+    config.replyLang = document.getElementById('replyLangSelect').value;
+    const pinVal = document.getElementById('pinSetupInput').value.trim();
+    if(pinVal !== '') config.pin = /^\d{4}$/.test(pinVal) ? pinVal : config.pin;
+    config.themeMode = document.getElementById('themeModeSelect').value;
+    config.functionCalling = document.getElementById('functionCallingToggle').checked;
+    config.dailySummary = document.getElementById('dailySummaryToggle').checked;
+    saveStorage(config);
+    if(typeof applyThemeMode === 'function') applyThemeMode();
+    if(config.apiKey){
+      statusText.textContent = 'ONLINE — ' + config.model;
+      liveDot.classList.add('live');
+      addSys('✅ ARIA connected (' + config.model + ')। अब बोलो या लिखो — key अब हमेशा के लिए save है।');
+    }
+    setupOverlay.classList.remove('show');
+  });
+  clearMemory.addEventListener('click', ()=>{
+    history = [];
+    try{ localStorage.removeItem(HISTORY_KEY); }catch(e){}
+    chat.innerHTML = '';
+    addSys('🗑 पूरी बातचीत मिटा दी गई। API key वैसी ही save रहेगी।');
+    setupOverlay.classList.remove('show');
+  });
+
+  // prefill setup fields from stored config
+  apiKeyInput.value = config.apiKey || '';
+  modelSelect.value = config.model;
+  langSelect.value = config.lang;
+  autoSpeak.checked = config.speak;
+  document.getElementById('pitchRange').value = config.pitch || 1.15;
+  document.getElementById('rateRange').value = config.rate || 1.0;
+  document.getElementById('voiceGenderFilter').value = config.voiceGender || 'auto';
+  document.getElementById('replyLangSelect').value = config.replyLang || 'hinglish';
+  document.getElementById('themeModeSelect').value = config.themeMode || 'manual';
+  document.getElementById('functionCallingToggle').checked = config.functionCalling !== false;
+  document.getElementById('dailySummaryToggle').checked = !!config.dailySummary;
+  if(config.apiKey){
+    statusText.textContent = 'ONLINE — ' + config.model;
+    liveDot.classList.add('live');
+  } else {
+    setupOverlay.classList.add('show');
+  }
+
+  // ================= Animated HUD background =================
+  const bgCanvas = document.getElementById('bgCanvas');
+  const bctx = bgCanvas.getContext('2d');
+  let W, H, particles = [];
+  let bgTargetState = 'idle';
+  function resizeBg(){
+    W = bgCanvas.width = window.innerWidth;
+    H = bgCanvas.height = window.innerHeight;
+  }
+  window.addEventListener('resize', resizeBg);
+  resizeBg();
+  const N = 55;
+  for(let i=0;i<N;i++){
+    particles.push({
+      x: Math.random()*W, y: Math.random()*H,
+      r: 0.6 + Math.random()*1.8,
+      vx: (Math.random()-0.5)*0.15,
+      vy: (Math.random()-0.5)*0.15,
+      phase: Math.random()*Math.PI*2
+    });
+  }
+  function colorFor(state){
+    if(state==='listening') return [255,180,84];
+    if(state==='thinking') return [143,120,255];
+    if(state==='speaking') return [79,216,255];
+    return [60,150,180];
+  }
+  let t = 0;
+  function drawBg(){
+    t += 0.016;
+    bctx.clearRect(0,0,W,H);
+    const grad = bctx.createRadialGradient(W/2, H*0.18, 20, W/2, H*0.18, Math.max(W,H)*0.7);
+    const [r,g,b] = colorFor(bgTargetState);
+    grad.addColorStop(0, `rgba(${r},${g},${b},0.10)`);
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    bctx.fillStyle = grad;
+    bctx.fillRect(0,0,W,H);
+
+    const speed = bgTargetState==='listening' ? 1.8 : bgTargetState==='thinking' ? 1.4 : 1;
+    particles.forEach(p=>{
+      p.x += p.vx * speed; p.y += p.vy * speed;
+      if(p.x<0) p.x=W; if(p.x>W) p.x=0;
+      if(p.y<0) p.y=H; if(p.y>H) p.y=0;
+      const twinkle = 0.4 + 0.6*Math.abs(Math.sin(t*1.5 + p.phase));
+      bctx.beginPath();
+      bctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
+      bctx.fillStyle = `rgba(${r},${g},${b},${0.35*twinkle})`;
+      bctx.fill();
+    });
+
+    // faint connecting lines for a HUD-network feel
+    for(let i=0;i<particles.length;i++){
+      for(let j=i+1;j<particles.length;j++){
+        const a = particles[i], bp = particles[j];
+        const dx = a.x-bp.x, dy = a.y-bp.y;
+        const d = Math.sqrt(dx*dx+dy*dy);
+        if(d < 90){
+          bctx.strokeStyle = `rgba(${r},${g},${b},${0.08*(1-d/90)})`;
+          bctx.lineWidth = 1;
+          bctx.beginPath();
+          bctx.moveTo(a.x,a.y); bctx.lineTo(bp.x,bp.y);
+          bctx.stroke();
+        }
+      }
+    }
+    requestAnimationFrame(drawBg);
+  }
+  drawBg();
+})();
+</script>
+</body>
+</html>
